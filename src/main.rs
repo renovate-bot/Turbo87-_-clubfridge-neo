@@ -50,7 +50,7 @@ impl Item {
 enum Message {
     KeyPress(Key),
     AddItem(Item),
-    ClearItems,
+    Cancel,
 }
 
 fn subscription(_state: &State) -> Subscription<Message> {
@@ -65,7 +65,10 @@ fn update(state: &mut State, message: Message) {
             state.input.clear();
         }
         Message::AddItem(item) => state.items.push(item),
-        Message::ClearItems => state.items.clear(),
+        Message::Cancel => {
+            state.user = None;
+            state.items.clear()
+        }
         _ => {}
     }
 }
@@ -103,7 +106,7 @@ fn view(state: &State) -> Element<Message> {
                 .width(Fill)
                 .style(button::danger)
                 .padding([10, 20])
-                .on_press_maybe(state.user.as_ref().map(|_| Message::ClearItems)),
+                .on_press_maybe(state.user.as_ref().map(|_| Message::Cancel)),
                 button(
                     text("Bezahlen")
                         .color(color!(0xffffff))
