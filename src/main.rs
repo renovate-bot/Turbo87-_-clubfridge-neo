@@ -83,11 +83,16 @@ fn view(state: &State) -> Element<Message> {
         .into()
     }));
 
+    let sum = state.items.iter().map(|item| item.total()).sum::<f32>();
+
     container(
         column![
             text(state.user.as_deref().unwrap_or("Bitte RFID Chip")).size(36),
             scrollable(items).height(Fill).width(Fill).anchor_bottom(),
-            text("Summe: € 0.00").size(24).align_x(Right).width(Fill),
+            text(format!("Summe: € {sum:.2}"))
+                .size(24)
+                .align_x(Right)
+                .width(Fill),
             row![
                 button(
                     text("Abbruch")
