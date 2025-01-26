@@ -1,6 +1,6 @@
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::widget::{button, column, container, row, scrollable, text, Column};
+use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{application, color, Center, Element, Fill, Right, Subscription, Theme};
 use std::sync::Arc;
 
@@ -92,24 +92,15 @@ fn update(state: &mut State, message: Message) {
 }
 
 fn view(state: &State) -> Element<Message> {
-    let items = Column::with_children(state.items.iter().map(|item| {
-        text(format!(
-            "{}x {}    {:.2}€   Gesamt {:.2}",
-            item.amount,
-            item.description,
-            item.price,
-            item.total()
-        ))
-        .size(24)
-        .into()
-    }));
-
     let sum = state.items.iter().map(|item| item.total()).sum::<f32>();
 
     container(
         column![
             text(state.user.as_deref().unwrap_or("Bitte RFID Chip")).size(36),
-            scrollable(items).height(Fill).width(Fill).anchor_bottom(),
+            scrollable(items(&state.items))
+                .height(Fill)
+                .width(Fill)
+                .anchor_bottom(),
             text(format!("Summe: € {sum:.2}"))
                 .size(24)
                 .align_x(Right)
@@ -146,5 +137,40 @@ fn view(state: &State) -> Element<Message> {
     )
     .style(|_theme: &Theme| container::background(color!(0x000000)))
     .padding([20, 30])
+    .into()
+}
+
+fn items(items: &[Item]) -> Element<Message> {
+    row![
+        column(
+            items
+                .iter()
+                .map(|item| { text(format!("{}x", item.amount)).size(24).into() })
+        )
+        .align_x(Right)
+        .spacing(10),
+        column(
+            items
+                .iter()
+                .map(|item| { text(&item.description).size(24).into() })
+        )
+        .width(Fill)
+        .spacing(10),
+        column(
+            items
+                .iter()
+                .map(|item| { text(format!("{:.2}€", item.price,)).size(24).into() })
+        )
+        .align_x(Right)
+        .spacing(10),
+        column(
+            items
+                .iter()
+                .map(|item| { text(format!("Gesamt {:.2}€", item.total())).size(24).into() })
+        )
+        .align_x(Right)
+        .spacing(10),
+    ]
+    .spacing(20)
     .into()
 }
