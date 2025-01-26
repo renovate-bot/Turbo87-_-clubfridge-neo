@@ -29,6 +29,7 @@ fn theme(_state: &State) -> Theme {
 }
 
 struct State {
+    articles: HashMap<String, Article>,
     users: HashMap<String, String>,
 
     user: Option<String>,
@@ -40,9 +41,32 @@ struct State {
 
 impl Default for State {
     fn default() -> Self {
+        let articles = vec![
+            Article {
+                ean: "3800235265659".to_string(),
+                description: "Gloriette Cola Mix".to_string(),
+                price: 0.9,
+            },
+            Article {
+                ean: "x001wfi0uh".to_string(),
+                description: "Bratwurst".to_string(),
+                price: 1.5,
+            },
+            Article {
+                ean: "3800235266700".to_string(),
+                description: "Erdinger Weissbier 0.5L".to_string(),
+                price: 1.2,
+            },
+        ];
+        let articles = HashMap::from_iter(
+            articles
+                .into_iter()
+                .map(|article| (article.ean.clone(), article)),
+        );
         let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
 
         Self {
+            articles,
             users,
             user: None,
             input: String::new(),
@@ -52,8 +76,16 @@ impl Default for State {
     }
 }
 
+#[derive(Debug)]
+struct Article {
+    ean: String,
+    description: String,
+    price: f32,
+}
+
 #[derive(Debug, Clone)]
 struct Item {
+    ean: String,
     amount: u16,
     description: String,
     price: f32,
@@ -97,20 +129,23 @@ fn update(state: &mut State, message: Message) {
         }
         Message::KeyPress(Key::Named(Named::Enter)) => {
             if state.user.is_some() {
-                state
-                    .items
-                    .iter_mut()
-                    .find(|item| item.description == state.input)
-                    .map(|item| {
-                        item.amount += 1;
-                    })
-                    .unwrap_or_else(|| {
-                        state.items.push(Item {
-                            amount: 1,
-                            description: state.input.clone(),
-                            price: 0.5,
+                if let Some(article) = state.articles.get(&state.input) {
+                    state
+                        .items
+                        .iter_mut()
+                        .find(|item| item.ean == article.ean)
+                        .map(|item| {
+                            item.amount += 1;
+                        })
+                        .unwrap_or_else(|| {
+                            state.items.push(Item {
+                                ean: article.ean.clone(),
+                                amount: 1,
+                                description: article.description.clone(),
+                                price: article.price,
+                            });
                         });
-                    });
+                }
             } else {
                 if state.users.contains_key(&state.input) {
                     state.user = Some(state.input.clone());
