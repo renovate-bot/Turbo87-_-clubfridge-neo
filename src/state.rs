@@ -109,10 +109,8 @@ pub fn update(state: &mut State, message: Message) {
                             });
                         });
                 }
-            } else {
-                if state.users.contains_key(&state.input) {
-                    state.user = Some(state.input.clone());
-                }
+            } else if state.users.contains_key(&state.input) {
+                state.user = Some(state.input.clone());
             }
 
             state.input.clear();
