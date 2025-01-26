@@ -1,18 +1,35 @@
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::widget::{button, column, container, row, scrollable, stack, text};
-use iced::{application, color, Center, Element, Fill, Right, Subscription, Theme};
+use iced::{application, color, window, Center, Element, Fill, Right, Subscription, Task, Theme};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[derive(Debug, clap::Parser)]
+struct Options {
+    /// Run in fullscreen
+    #[arg(long)]
+    fullscreen: bool,
+}
+
 pub fn main() -> iced::Result {
+    let options = <Options as clap::Parser>::parse();
+
+    // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
+    let fullscreen_task = options
+        .fullscreen
+        .then(|| {
+            window::get_latest().and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
+        })
+        .unwrap_or(Task::none());
+
     application("ClubFridge neo", update, view)
         .theme(theme)
         .subscription(subscription)
         .resizable(true)
         .window_size((800., 480.))
-        .run()
+        .run_with(|| (State::default(), fullscreen_task))
 }
 
 fn theme(_state: &State) -> Theme {
