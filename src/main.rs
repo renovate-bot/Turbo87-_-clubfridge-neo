@@ -61,7 +61,25 @@ fn update(state: &mut State, message: Message) {
     match message {
         Message::KeyPress(Key::Character(c)) => state.input.push_str(c.as_str()),
         Message::KeyPress(Key::Named(Named::Enter)) => {
-            state.user = Some(state.input.clone());
+            if state.user.is_some() {
+                state
+                    .items
+                    .iter_mut()
+                    .find(|item| item.description == state.input)
+                    .map(|item| {
+                        item.amount += 1;
+                    })
+                    .unwrap_or_else(|| {
+                        state.items.push(Item {
+                            amount: 1,
+                            description: state.input.clone(),
+                            price: 0.5,
+                        });
+                    });
+            } else {
+                state.user = Some(state.input.clone());
+            }
+
             state.input.clear();
         }
         Message::AddItem(item) => state.items.push(item),
