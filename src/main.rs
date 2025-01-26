@@ -30,13 +30,26 @@ fn theme(_state: &State) -> Theme {
 struct State {
     user: Option<String>,
     input: String,
-    items: Vec<String>,
+    items: Vec<Item>,
+}
+
+#[derive(Debug, Clone)]
+struct Item {
+    amount: u16,
+    description: String,
+    price: f32,
+}
+
+impl Item {
+    fn total(&self) -> f32 {
+        self.amount as f32 * self.price
+    }
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     KeyPress(Key),
-    AddItem,
+    AddItem(Item),
     ClearItems,
 }
 
@@ -51,16 +64,24 @@ fn update(state: &mut State, message: Message) {
             state.user = Some(state.input.clone());
             state.input.clear();
         }
-        Message::AddItem => state
-            .items
-            .push("1x  Kaffee Pott/Tasse/Es    €0.50   Gesamt: €0.50".to_string()),
+        Message::AddItem(item) => state.items.push(item),
         Message::ClearItems => state.items.clear(),
         _ => {}
     }
 }
 
 fn view(state: &State) -> Element<Message> {
-    let items = Column::with_children(state.items.iter().map(|item| text(item).size(24).into()));
+    let items = Column::with_children(state.items.iter().map(|item| {
+        text(format!(
+            "{}x {}    {:.2}€   Gesamt {:.2}",
+            item.amount,
+            item.description,
+            item.price,
+            item.total()
+        ))
+        .size(24)
+        .into()
+    }));
 
     container(
         column![
@@ -87,7 +108,11 @@ fn view(state: &State) -> Element<Message> {
                 .width(Fill)
                 .style(button::success)
                 .padding([10, 20])
-                .on_press_maybe(state.user.as_ref().map(|_| Message::AddItem)),
+                .on_press_maybe(state.user.as_ref().map(|_| Message::AddItem(Item {
+                    amount: 1,
+                    description: "Kaffee Pott/Tasse/Es".to_string(),
+                    price: 0.5,
+                }))),
             ]
             .spacing(10),
         ]
