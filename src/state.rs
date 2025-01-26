@@ -131,3 +131,91 @@ pub fn update(state: &mut State, message: Message) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input(state: &mut State, input: &str) {
+        for c in input.chars() {
+            let char = c.to_string().into();
+            update(state, Message::KeyPress(Key::Character(char)));
+        }
+
+        update(state, Message::KeyPress(Key::Named(Named::Enter)));
+    }
+
+    #[test]
+    fn test_initial_state() {
+        let state = State::from_config(Config::dummy());
+        assert_eq!(state.user, None);
+        assert_eq!(state.input, "");
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 0);
+    }
+
+    #[test]
+    fn test_happy_path() {
+        let mut state = State::from_config(Config::dummy());
+
+        input(&mut state, "0005635570");
+        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 0);
+
+        input(&mut state, "3800235265659");
+        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(state.items.len(), 1);
+        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(state.items[0].amount, 1);
+        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.sale_confirmation_timer, 0);
+
+        input(&mut state, "3800235266700");
+        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(state.items.len(), 2);
+        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(state.items[0].amount, 1);
+        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.items[1].ean, "3800235266700");
+        assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(state.items[1].amount, 1);
+        assert_eq!(state.items[1].price, 1.2);
+        assert_eq!(state.sale_confirmation_timer, 0);
+
+        input(&mut state, "3800235265659");
+        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(state.items.len(), 2);
+        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(state.items[0].amount, 2);
+        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.items[1].ean, "3800235266700");
+        assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(state.items[1].amount, 1);
+        assert_eq!(state.items[1].price, 1.2);
+        assert_eq!(state.sale_confirmation_timer, 0);
+
+        update(&mut state, Message::Pay);
+        assert_eq!(state.user, None);
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 3);
+
+        update(&mut state, Message::DecreaseSaleConfirmationTimer);
+        assert_eq!(state.user, None);
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 2);
+
+        update(&mut state, Message::DecreaseSaleConfirmationTimer);
+        assert_eq!(state.user, None);
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 1);
+
+        update(&mut state, Message::DecreaseSaleConfirmationTimer);
+        assert_eq!(state.user, None);
+        assert_eq!(state.items.len(), 0);
+        assert_eq!(state.sale_confirmation_timer, 0);
+    }
+}
