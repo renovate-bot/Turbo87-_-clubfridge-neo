@@ -1,8 +1,10 @@
+use anyhow::Context;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{application, color, window, Center, Element, Fill, Right, Subscription, Task, Theme};
 use std::collections::HashMap;
+use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,8 +15,14 @@ struct Options {
     fullscreen: bool,
 }
 
-pub fn main() -> iced::Result {
+pub fn main() -> anyhow::Result<()> {
     let options = <Options as clap::Parser>::parse();
+
+    let config_path = "config.json";
+    let config_file = File::open(config_path)
+        .with_context(|| format!("Failed to read config file at {config_path}"))?;
+    let config: Config =
+        serde_json::from_reader(config_file).context("Failed to parse config file")?;
 
     // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
     let fullscreen_task = options
@@ -29,7 +37,18 @@ pub fn main() -> iced::Result {
         .subscription(subscription)
         .resizable(true)
         .window_size((800., 480.))
-        .run_with(|| (State::default(), fullscreen_task))
+        .run_with(|| (State::from_config(config), fullscreen_task))?;
+
+    Ok(())
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct Config {
+    club_id: u32,
+    app_key: String,
+    username: String,
+    password: String,
 }
 
 fn theme(_state: &State) -> Theme {
@@ -46,6 +65,9 @@ fn theme(_state: &State) -> Theme {
 }
 
 struct State {
+    #[allow(dead_code)]
+    config: Config,
+
     articles: HashMap<String, Article>,
     users: HashMap<String, String>,
 
@@ -56,8 +78,8 @@ struct State {
     sale_confirmation_timer: u8,
 }
 
-impl Default for State {
-    fn default() -> Self {
+impl State {
+    fn from_config(config: Config) -> State {
         let articles = vec![
             Article {
                 ean: "3800235265659".to_string(),
@@ -83,6 +105,7 @@ impl Default for State {
         let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
 
         Self {
+            config,
             articles,
             users,
             user: None,
