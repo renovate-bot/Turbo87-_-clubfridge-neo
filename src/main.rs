@@ -1,8 +1,9 @@
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{application, color, Center, Element, Fill, Right, Subscription, Theme};
 use std::sync::Arc;
+use std::time::Duration;
 
 pub fn main() -> iced::Result {
     application("ClubFridge neo", update, view)
@@ -31,6 +32,8 @@ struct State {
     user: Option<String>,
     input: String,
     items: Vec<Item>,
+    /// Show a confirmation screen until this timer runs out
+    sale_confirmation_timer: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -49,17 +52,33 @@ impl Item {
 #[derive(Debug, Clone)]
 enum Message {
     KeyPress(Key),
-    AddItem(Item),
+    Pay,
     Cancel,
+    DecreaseSaleConfirmationTimer,
 }
 
-fn subscription(_state: &State) -> Subscription<Message> {
-    iced::keyboard::on_key_release(|key, _modifiers| Some(Message::KeyPress(key)))
+fn subscription(state: &State) -> Subscription<Message> {
+    let key_press_subscription =
+        iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)));
+
+    let mut subscriptions = vec![key_press_subscription];
+
+    if state.sale_confirmation_timer != 0 {
+        subscriptions.push(
+            iced::time::every(Duration::from_secs(1))
+                .map(|_| Message::DecreaseSaleConfirmationTimer),
+        );
+    }
+
+    Subscription::batch(subscriptions)
 }
 
 fn update(state: &mut State, message: Message) {
     match message {
-        Message::KeyPress(Key::Character(c)) => state.input.push_str(c.as_str()),
+        Message::KeyPress(Key::Character(c)) => {
+            state.input.push_str(c.as_str());
+            state.sale_confirmation_timer = 0;
+        }
         Message::KeyPress(Key::Named(Named::Enter)) => {
             if state.user.is_some() {
                 state
@@ -81,11 +100,19 @@ fn update(state: &mut State, message: Message) {
             }
 
             state.input.clear();
+            state.sale_confirmation_timer = 0;
         }
-        Message::AddItem(item) => state.items.push(item),
+        Message::Pay => {
+            state.user = None;
+            state.items.clear();
+            state.sale_confirmation_timer = 3;
+        }
         Message::Cancel => {
             state.user = None;
-            state.items.clear()
+            state.items.clear();
+        }
+        Message::DecreaseSaleConfirmationTimer => {
+            state.sale_confirmation_timer = state.sale_confirmation_timer.saturating_sub(1);
         }
         _ => {}
     }
@@ -94,50 +121,66 @@ fn update(state: &mut State, message: Message) {
 fn view(state: &State) -> Element<Message> {
     let sum = state.items.iter().map(|item| item.total()).sum::<f32>();
 
-    container(
-        column![
-            text(state.user.as_deref().unwrap_or("Bitte RFID Chip")).size(36),
-            scrollable(items(&state.items))
-                .height(Fill)
-                .width(Fill)
-                .anchor_bottom(),
-            text(format!("Summe: € {sum:.2}"))
-                .size(24)
-                .align_x(Right)
-                .width(Fill),
-            row![
-                button(
-                    text("Abbruch")
-                        .color(color!(0xffffff))
-                        .size(36)
-                        .align_x(Center)
-                )
-                .width(Fill)
-                .style(button::danger)
-                .padding([10, 20])
-                .on_press_maybe(state.user.as_ref().map(|_| Message::Cancel)),
-                button(
-                    text("Bezahlen")
-                        .color(color!(0xffffff))
-                        .size(36)
-                        .align_x(Center)
-                )
-                .width(Fill)
-                .style(button::success)
-                .padding([10, 20])
-                .on_press_maybe(state.user.as_ref().map(|_| Message::AddItem(Item {
-                    amount: 1,
-                    description: "Kaffee Pott/Tasse/Es".to_string(),
-                    price: 0.5,
-                }))),
-            ]
-            .spacing(10),
+    let content = column![
+        text(state.user.as_deref().unwrap_or("Bitte RFID Chip")).size(36),
+        scrollable(items(&state.items))
+            .height(Fill)
+            .width(Fill)
+            .anchor_bottom(),
+        text(format!("Summe: € {sum:.2}"))
+            .size(24)
+            .align_x(Right)
+            .width(Fill),
+        row![
+            button(
+                text("Abbruch")
+                    .color(color!(0xffffff))
+                    .size(36)
+                    .align_x(Center)
+            )
+            .width(Fill)
+            .style(button::danger)
+            .padding([10, 20])
+            .on_press_maybe(state.user.as_ref().map(|_| Message::Cancel)),
+            button(
+                text("Bezahlen")
+                    .color(color!(0xffffff))
+                    .size(36)
+                    .align_x(Center)
+            )
+            .width(Fill)
+            .style(button::success)
+            .padding([10, 20])
+            .on_press_maybe(state.user.as_ref().map(|_| Message::Pay)),
         ]
         .spacing(10),
-    )
-    .style(|_theme: &Theme| container::background(color!(0x000000)))
-    .padding([20, 30])
-    .into()
+    ]
+    .spacing(10);
+
+    let mut stack = stack![content];
+
+    if state.sale_confirmation_timer != 0 {
+        stack = stack.push(
+            container(
+                container(
+                    text("Danke für deinen Kauf")
+                        .size(36)
+                        .color(color!(0x000000)),
+                )
+                .style(|_theme: &Theme| container::background(color!(0xffffff)))
+                .padding([15, 30]),
+            )
+            .width(Fill)
+            .height(Fill)
+            .align_x(Center)
+            .align_y(Center),
+        );
+    }
+
+    container(stack)
+        .style(|_theme: &Theme| container::background(color!(0x000000)))
+        .padding([20, 30])
+        .into()
 }
 
 fn items(items: &[Item]) -> Element<Message> {
