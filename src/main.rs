@@ -2,6 +2,7 @@ use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{application, color, Center, Element, Fill, Right, Subscription, Theme};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,13 +28,28 @@ fn theme(_state: &State) -> Theme {
     )))
 }
 
-#[derive(Default)]
 struct State {
+    users: HashMap<String, String>,
+
     user: Option<String>,
     input: String,
     items: Vec<Item>,
     /// Show a confirmation screen until this timer runs out
     sale_confirmation_timer: u8,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
+
+        Self {
+            users,
+            user: None,
+            input: String::new(),
+            items: vec![],
+            sale_confirmation_timer: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +112,9 @@ fn update(state: &mut State, message: Message) {
                         });
                     });
             } else {
-                state.user = Some(state.input.clone());
+                if state.users.contains_key(&state.input) {
+                    state.user = Some(state.input.clone());
+                }
             }
 
             state.input.clear();
@@ -119,10 +137,21 @@ fn update(state: &mut State, message: Message) {
 }
 
 fn view(state: &State) -> Element<Message> {
+    let title = state
+        .user
+        .as_ref()
+        .and_then(|user_id| {
+            state
+                .users
+                .get(user_id)
+                .map(|user_name| text(format!("{user_name} ({user_id})")))
+        })
+        .unwrap_or(text("Bitte RFID Chip"));
+
     let sum = state.items.iter().map(|item| item.total()).sum::<f32>();
 
     let content = column![
-        text(state.user.as_deref().unwrap_or("Bitte RFID Chip")).size(36),
+        title.size(36),
         scrollable(items(&state.items))
             .height(Fill)
             .width(Fill)
