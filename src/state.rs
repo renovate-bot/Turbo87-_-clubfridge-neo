@@ -26,17 +26,29 @@ impl State {
             Article {
                 ean: "3800235265659".to_string(),
                 description: "Gloriette Cola Mix".to_string(),
-                price: dec!(0.9),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(0.9),
+                }],
             },
             Article {
                 ean: "x001wfi0uh".to_string(),
                 description: "Bratwurst".to_string(),
-                price: dec!(1.5),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(1.5),
+                }],
             },
             Article {
                 ean: "3800235266700".to_string(),
                 description: "Erdinger Weissbier 0.5L".to_string(),
-                price: dec!(1.2),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(1.2),
+                }],
             },
         ];
         let articles = HashMap::from_iter(
@@ -62,7 +74,27 @@ impl State {
 pub struct Article {
     pub ean: String,
     pub description: String,
-    pub price: Decimal,
+    pub prices: Vec<Price>,
+}
+
+impl Article {
+    pub fn current_price(&self) -> Option<Decimal> {
+        self.price_for_date(&jiff::Zoned::now().date())
+    }
+
+    pub fn price_for_date(&self, date: &jiff::civil::Date) -> Option<Decimal> {
+        self.prices
+            .iter()
+            .find(|price| price.valid_from <= *date && price.valid_to >= *date)
+            .map(|price| price.unit_price)
+    }
+}
+
+#[derive(Debug)]
+pub struct Price {
+    pub valid_from: jiff::civil::Date,
+    pub valid_to: jiff::civil::Date,
+    pub unit_price: Decimal,
 }
 
 #[derive(Debug, Clone)]
@@ -126,21 +158,23 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         Message::AddToSale { barcode } => {
             if state.user.is_some() {
                 if let Some(article) = state.articles.get(&barcode) {
-                    state
-                        .items
-                        .iter_mut()
-                        .find(|item| item.ean == article.ean)
-                        .map(|item| {
-                            item.amount += 1;
-                        })
-                        .unwrap_or_else(|| {
-                            state.items.push(Item {
-                                ean: article.ean.clone(),
-                                amount: 1,
-                                description: article.description.clone(),
-                                price: article.price,
+                    if let Some(price) = article.current_price() {
+                        state
+                            .items
+                            .iter_mut()
+                            .find(|item| item.ean == article.ean)
+                            .map(|item| {
+                                item.amount += 1;
+                            })
+                            .unwrap_or_else(|| {
+                                state.items.push(Item {
+                                    ean: article.ean.clone(),
+                                    amount: 1,
+                                    description: article.description.clone(),
+                                    price,
+                                });
                             });
-                        });
+                    }
                 }
             }
         }
