@@ -22,37 +22,8 @@ pub struct State {
 
 impl State {
     pub fn from_config(config: Config) -> State {
-        let articles = vec![
-            Article {
-                barcode: "3800235265659".to_string(),
-                description: "Gloriette Cola Mix".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(0.9),
-                }],
-            },
-            Article {
-                barcode: "x001wfi0uh".to_string(),
-                description: "Bratwurst".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(1.5),
-                }],
-            },
-            Article {
-                barcode: "3800235266700".to_string(),
-                description: "Erdinger Weissbier 0.5L".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(1.2),
-                }],
-            },
-        ];
         let articles = HashMap::from_iter(
-            articles
+            Article::dummies()
                 .into_iter()
                 .map(|article| (article.barcode.clone(), article)),
         );
@@ -87,6 +58,38 @@ impl Article {
             .iter()
             .find(|price| price.valid_from <= *date && price.valid_to >= *date)
             .map(|price| price.unit_price)
+    }
+
+    pub fn dummies() -> Vec<Article> {
+        vec![
+            Article {
+                barcode: "3800235265659".to_string(),
+                description: "Gloriette Cola Mix".to_string(),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(0.9),
+                }],
+            },
+            Article {
+                barcode: "x001wfi0uh".to_string(),
+                description: "Bratwurst".to_string(),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(1.5),
+                }],
+            },
+            Article {
+                barcode: "3800235266700".to_string(),
+                description: "Erdinger Weissbier 0.5L".to_string(),
+                prices: vec![Price {
+                    valid_from: jiff::civil::date(2000, 1, 1),
+                    valid_to: jiff::civil::date(2999, 12, 31),
+                    unit_price: dec!(1.2),
+                }],
+            },
+        ]
     }
 }
 
