@@ -68,7 +68,7 @@ pub fn view(state: &State) -> Element<Message> {
 
     let mut stack = stack![content];
 
-    if state.sale_confirmation_timer != 0 {
+    if state.show_sale_confirmation {
         stack = stack.push(
             container(
                 container(

@@ -8,7 +8,6 @@ use crate::ui::{theme, view};
 use anyhow::Context;
 use iced::{application, window, Subscription, Task};
 use std::fs::File;
-use std::time::Duration;
 
 #[derive(Debug, clap::Parser)]
 struct Options {
@@ -44,18 +43,6 @@ pub fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn subscription(state: &State) -> Subscription<Message> {
-    let key_press_subscription =
-        iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)));
-
-    let mut subscriptions = vec![key_press_subscription];
-
-    if state.sale_confirmation_timer != 0 {
-        subscriptions.push(
-            iced::time::every(Duration::from_secs(1))
-                .map(|_| Message::DecreaseSaleConfirmationTimer),
-        );
-    }
-
-    Subscription::batch(subscriptions)
+fn subscription(_state: &State) -> Subscription<Message> {
+    iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)))
 }

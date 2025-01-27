@@ -1,7 +1,9 @@
 use crate::config::Config;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
+use iced::Task;
 use std::collections::HashMap;
+use std::time::Duration;
 
 pub struct State {
     #[allow(dead_code)]
@@ -13,8 +15,7 @@ pub struct State {
     pub user: Option<String>,
     pub input: String,
     pub items: Vec<Item>,
-    /// Show a confirmation screen until this timer runs out
-    pub sale_confirmation_timer: u8,
+    pub show_sale_confirmation: bool,
 }
 
 impl State {
@@ -50,7 +51,7 @@ impl State {
             user: None,
             input: String::new(),
             items: vec![],
-            sale_confirmation_timer: 0,
+            show_sale_confirmation: false,
         }
     }
 }
@@ -81,14 +82,14 @@ pub enum Message {
     KeyPress(Key),
     Pay,
     Cancel,
-    DecreaseSaleConfirmationTimer,
+    HideSaleConfirmation,
 }
 
-pub fn update(state: &mut State, message: Message) {
+pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::KeyPress(Key::Character(c)) => {
             state.input.push_str(c.as_str());
-            state.sale_confirmation_timer = 0;
+            state.show_sale_confirmation = false;
         }
         Message::KeyPress(Key::Named(Named::Enter)) => {
             if state.user.is_some() {
@@ -114,22 +115,27 @@ pub fn update(state: &mut State, message: Message) {
             }
 
             state.input.clear();
-            state.sale_confirmation_timer = 0;
+            state.show_sale_confirmation = false;
         }
         Message::Pay => {
             state.user = None;
             state.items.clear();
-            state.sale_confirmation_timer = 3;
+            state.show_sale_confirmation = true;
+            return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
+                Message::HideSaleConfirmation
+            });
         }
         Message::Cancel => {
             state.user = None;
             state.items.clear();
         }
-        Message::DecreaseSaleConfirmationTimer => {
-            state.sale_confirmation_timer = state.sale_confirmation_timer.saturating_sub(1);
+        Message::HideSaleConfirmation => {
+            state.show_sale_confirmation = false;
         }
         _ => {}
     }
+
+    Task::none()
 }
 
 #[cfg(test)]
@@ -139,10 +145,10 @@ mod tests {
     fn input(state: &mut State, input: &str) {
         for c in input.chars() {
             let char = c.to_string().into();
-            update(state, Message::KeyPress(Key::Character(char)));
+            let _ = update(state, Message::KeyPress(Key::Character(char)));
         }
 
-        update(state, Message::KeyPress(Key::Named(Named::Enter)));
+        let _ = update(state, Message::KeyPress(Key::Named(Named::Enter)));
     }
 
     #[test]
@@ -151,17 +157,17 @@ mod tests {
         assert_eq!(state.user, None);
         assert_eq!(state.input, "");
         assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(!state.show_sale_confirmation);
     }
 
-    #[test]
-    fn test_happy_path() {
+    #[tokio::test]
+    async fn test_happy_path() {
         let mut state = State::from_config(Config::dummy());
 
         input(&mut state, "0005635570");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
         assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(!state.show_sale_confirmation);
 
         input(&mut state, "3800235265659");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
@@ -170,7 +176,7 @@ mod tests {
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 1);
         assert_eq!(state.items[0].price, 0.9);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(!state.show_sale_confirmation);
 
         input(&mut state, "3800235266700");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
@@ -183,7 +189,7 @@ mod tests {
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
         assert_eq!(state.items[1].price, 1.2);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(!state.show_sale_confirmation);
 
         input(&mut state, "3800235265659");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
@@ -196,26 +202,11 @@ mod tests {
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
         assert_eq!(state.items[1].price, 1.2);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(!state.show_sale_confirmation);
 
-        update(&mut state, Message::Pay);
+        let _ = update(&mut state, Message::Pay);
         assert_eq!(state.user, None);
         assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 3);
-
-        update(&mut state, Message::DecreaseSaleConfirmationTimer);
-        assert_eq!(state.user, None);
-        assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 2);
-
-        update(&mut state, Message::DecreaseSaleConfirmationTimer);
-        assert_eq!(state.user, None);
-        assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 1);
-
-        update(&mut state, Message::DecreaseSaleConfirmationTimer);
-        assert_eq!(state.user, None);
-        assert_eq!(state.items.len(), 0);
-        assert_eq!(state.sale_confirmation_timer, 0);
+        assert!(state.show_sale_confirmation);
     }
 }
