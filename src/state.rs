@@ -2,6 +2,8 @@ use crate::config::Config;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::Task;
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -24,17 +26,17 @@ impl State {
             Article {
                 ean: "3800235265659".to_string(),
                 description: "Gloriette Cola Mix".to_string(),
-                price: 0.9,
+                price: dec!(0.9),
             },
             Article {
                 ean: "x001wfi0uh".to_string(),
                 description: "Bratwurst".to_string(),
-                price: 1.5,
+                price: dec!(1.5),
             },
             Article {
                 ean: "3800235266700".to_string(),
                 description: "Erdinger Weissbier 0.5L".to_string(),
-                price: 1.2,
+                price: dec!(1.2),
             },
         ];
         let articles = HashMap::from_iter(
@@ -60,7 +62,7 @@ impl State {
 pub struct Article {
     pub ean: String,
     pub description: String,
-    pub price: f32,
+    pub price: Decimal,
 }
 
 #[derive(Debug, Clone)]
@@ -68,12 +70,12 @@ pub struct Item {
     pub ean: String,
     pub amount: u16,
     pub description: String,
-    pub price: f32,
+    pub price: Decimal,
 }
 
 impl Item {
-    pub fn total(&self) -> f32 {
-        self.amount as f32 * self.price
+    pub fn total(&self) -> Decimal {
+        self.price * Decimal::from(self.amount)
     }
 }
 
@@ -175,7 +177,7 @@ mod tests {
         assert_eq!(state.items[0].ean, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 1);
-        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.items[0].price, dec!(0.9));
         assert!(!state.show_sale_confirmation);
 
         input(&mut state, "3800235266700");
@@ -184,11 +186,11 @@ mod tests {
         assert_eq!(state.items[0].ean, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 1);
-        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.items[0].price, dec!(0.9));
         assert_eq!(state.items[1].ean, "3800235266700");
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
-        assert_eq!(state.items[1].price, 1.2);
+        assert_eq!(state.items[1].price, dec!(1.2));
         assert!(!state.show_sale_confirmation);
 
         input(&mut state, "3800235265659");
@@ -197,11 +199,11 @@ mod tests {
         assert_eq!(state.items[0].ean, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 2);
-        assert_eq!(state.items[0].price, 0.9);
+        assert_eq!(state.items[0].price, dec!(0.9));
         assert_eq!(state.items[1].ean, "3800235266700");
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
-        assert_eq!(state.items[1].price, 1.2);
+        assert_eq!(state.items[1].price, dec!(1.2));
         assert!(!state.show_sale_confirmation);
 
         let _ = update(&mut state, Message::Pay);

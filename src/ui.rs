@@ -1,6 +1,7 @@
 use crate::state::{Item, Message, State};
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{color, Center, Element, Fill, Right, Theme};
+use rust_decimal::Decimal;
 use std::sync::Arc;
 
 pub fn theme(_state: &State) -> Theme {
@@ -28,7 +29,7 @@ pub fn view(state: &State) -> Element<Message> {
         })
         .unwrap_or(text("Bitte RFID Chip"));
 
-    let sum = state.items.iter().map(|item| item.total()).sum::<f32>();
+    let sum = state.items.iter().map(|item| item.total()).sum::<Decimal>();
 
     let content = column![
         title.size(36),
