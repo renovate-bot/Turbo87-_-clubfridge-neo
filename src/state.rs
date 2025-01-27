@@ -24,7 +24,7 @@ impl State {
     pub fn from_config(config: Config) -> State {
         let articles = vec![
             Article {
-                ean: "3800235265659".to_string(),
+                barcode: "3800235265659".to_string(),
                 description: "Gloriette Cola Mix".to_string(),
                 prices: vec![Price {
                     valid_from: jiff::civil::date(2000, 1, 1),
@@ -33,7 +33,7 @@ impl State {
                 }],
             },
             Article {
-                ean: "x001wfi0uh".to_string(),
+                barcode: "x001wfi0uh".to_string(),
                 description: "Bratwurst".to_string(),
                 prices: vec![Price {
                     valid_from: jiff::civil::date(2000, 1, 1),
@@ -42,7 +42,7 @@ impl State {
                 }],
             },
             Article {
-                ean: "3800235266700".to_string(),
+                barcode: "3800235266700".to_string(),
                 description: "Erdinger Weissbier 0.5L".to_string(),
                 prices: vec![Price {
                     valid_from: jiff::civil::date(2000, 1, 1),
@@ -54,7 +54,7 @@ impl State {
         let articles = HashMap::from_iter(
             articles
                 .into_iter()
-                .map(|article| (article.ean.clone(), article)),
+                .map(|article| (article.barcode.clone(), article)),
         );
         let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
 
@@ -72,7 +72,7 @@ impl State {
 
 #[derive(Debug)]
 pub struct Article {
-    pub ean: String,
+    pub barcode: String,
     pub description: String,
     pub prices: Vec<Price>,
 }
@@ -99,7 +99,7 @@ pub struct Price {
 
 #[derive(Debug, Clone)]
 pub struct Item {
-    pub ean: String,
+    pub barcode: String,
     pub amount: u16,
     pub description: String,
     pub price: Decimal,
@@ -144,7 +144,7 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         #[cfg(debug_assertions)]
         Message::KeyPress(Key::Named(Named::Control)) => {
             let task = if state.user.is_some() {
-                let barcode = state.articles.values().next().unwrap().ean.clone();
+                let barcode = state.articles.values().next().unwrap().barcode.clone();
                 Task::done(Message::AddToSale { barcode })
             } else {
                 let keycode = state.users.keys().next().unwrap().clone();
@@ -162,13 +162,13 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                         state
                             .items
                             .iter_mut()
-                            .find(|item| item.ean == article.ean)
+                            .find(|item| item.barcode == article.barcode)
                             .map(|item| {
                                 item.amount += 1;
                             })
                             .unwrap_or_else(|| {
                                 state.items.push(Item {
-                                    ean: article.ean.clone(),
+                                    barcode: article.barcode.clone(),
                                     amount: 1,
                                     description: article.description.clone(),
                                     price,
@@ -238,7 +238,7 @@ mod tests {
         input(&mut state, "3800235265659");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
         assert_eq!(state.items.len(), 1);
-        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].barcode, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 1);
         assert_eq!(state.items[0].price, dec!(0.9));
@@ -247,11 +247,11 @@ mod tests {
         input(&mut state, "3800235266700");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
         assert_eq!(state.items.len(), 2);
-        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].barcode, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 1);
         assert_eq!(state.items[0].price, dec!(0.9));
-        assert_eq!(state.items[1].ean, "3800235266700");
+        assert_eq!(state.items[1].barcode, "3800235266700");
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
         assert_eq!(state.items[1].price, dec!(1.2));
@@ -260,11 +260,11 @@ mod tests {
         input(&mut state, "3800235265659");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
         assert_eq!(state.items.len(), 2);
-        assert_eq!(state.items[0].ean, "3800235265659");
+        assert_eq!(state.items[0].barcode, "3800235265659");
         assert_eq!(state.items[0].description, "Gloriette Cola Mix");
         assert_eq!(state.items[0].amount, 2);
         assert_eq!(state.items[0].price, dec!(0.9));
-        assert_eq!(state.items[1].ean, "3800235266700");
+        assert_eq!(state.items[1].barcode, "3800235266700");
         assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
         assert_eq!(state.items[1].amount, 1);
         assert_eq!(state.items[1].price, dec!(1.2));
