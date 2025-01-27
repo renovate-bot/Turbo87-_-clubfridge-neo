@@ -82,6 +82,8 @@ impl Item {
 #[derive(Debug, Clone)]
 pub enum Message {
     KeyPress(Key),
+    SetUser { keycode: String },
+    AddToSale { barcode: String },
     Pay,
     Cancel,
     HideSaleConfirmation,
@@ -94,8 +96,36 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             state.show_sale_confirmation = false;
         }
         Message::KeyPress(Key::Named(Named::Enter)) => {
+            let task = if state.user.is_some() {
+                let barcode = state.input.clone();
+                Task::done(Message::AddToSale { barcode })
+            } else {
+                let keycode = state.input.clone();
+                Task::done(Message::SetUser { keycode })
+            };
+
+            state.input.clear();
+            state.show_sale_confirmation = false;
+
+            return task;
+        }
+        #[cfg(debug_assertions)]
+        Message::KeyPress(Key::Named(Named::Control)) => {
+            let task = if state.user.is_some() {
+                let barcode = state.articles.values().next().unwrap().ean.clone();
+                Task::done(Message::AddToSale { barcode })
+            } else {
+                let keycode = state.users.keys().next().unwrap().clone();
+                Task::done(Message::SetUser { keycode })
+            };
+
+            state.show_sale_confirmation = false;
+
+            return task;
+        }
+        Message::AddToSale { barcode } => {
             if state.user.is_some() {
-                if let Some(article) = state.articles.get(&state.input) {
+                if let Some(article) = state.articles.get(&barcode) {
                     state
                         .items
                         .iter_mut()
@@ -112,12 +142,12 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
                             });
                         });
                 }
-            } else if state.users.contains_key(&state.input) {
-                state.user = Some(state.input.clone());
             }
-
-            state.input.clear();
-            state.show_sale_confirmation = false;
+        }
+        Message::SetUser { keycode } => {
+            if state.users.contains_key(&keycode) {
+                state.user = Some(keycode);
+            }
         }
         Message::Pay => {
             state.user = None;
