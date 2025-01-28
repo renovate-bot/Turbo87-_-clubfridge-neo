@@ -6,7 +6,7 @@ use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::error;
+use tracing::{debug, error, info, warn};
 
 pub struct State {
     pub pool: Option<SqlitePool>,
@@ -130,6 +130,7 @@ pub enum Message {
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::DatabaseConnected(pool) => {
+            info!("Connected to database");
             state.pool = Some(pool);
         }
         Message::DatabaseConnectionFailed => {
@@ -139,10 +140,12 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             error!("Failed to run database migrations");
         }
         Message::KeyPress(Key::Character(c)) => {
+            debug!("Key pressed: {c:?}");
             state.input.push_str(c.as_str());
             state.show_sale_confirmation = false;
         }
         Message::KeyPress(Key::Named(Named::Enter)) => {
+            debug!("Key pressed: Enter");
             let task = if state.user.is_some() {
                 let barcode = state.input.clone();
                 Task::done(Message::AddToSale { barcode })
@@ -171,6 +174,7 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             return task;
         }
         Message::AddToSale { barcode } => {
+            info!("Adding article to sale: {barcode}");
             if state.user.is_some() {
                 if let Some(article) = state.articles.get(&barcode) {
                     if let Some(price) = article.current_price() {
@@ -195,10 +199,14 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         }
         Message::SetUser { keycode } => {
             if state.users.contains_key(&keycode) {
+                info!("Setting user: {keycode}");
                 state.user = Some(keycode);
+            } else {
+                warn!("Unknown user: {keycode}");
             }
         }
         Message::Pay => {
+            info!("Processing sale");
             state.user = None;
             state.items.clear();
             state.show_sale_confirmation = true;
@@ -207,10 +215,12 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             });
         }
         Message::Cancel => {
+            info!("Cancelling sale");
             state.user = None;
             state.items.clear();
         }
         Message::HideSaleConfirmation => {
+            debug!("Hiding sale confirmation popup");
             state.show_sale_confirmation = false;
         }
         _ => {}
