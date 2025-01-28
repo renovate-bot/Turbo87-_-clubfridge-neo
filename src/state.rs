@@ -1,3 +1,4 @@
+use crate::database;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::Task;
@@ -5,8 +6,10 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
+use std::mem;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
+use ulid::Ulid;
 
 pub struct State {
     pub pool: Option<SqlitePool>,
@@ -125,6 +128,8 @@ pub enum Message {
     DatabaseConnected(SqlitePool),
     DatabaseConnectionFailed,
     DatabaseMigrationFailed,
+    SalesSaved,
+    SavingSalesFailed,
 }
 
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
@@ -207,12 +212,33 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
         }
         Message::Pay => {
             info!("Processing sale");
+            if let Some(pool) = state.pool.clone() {
+                let date = jiff::Zoned::now().date();
+
+                let sales = mem::take(&mut state.items)
+                    .into_iter()
+                    .map(|item| database::NewSale {
+                        id: Ulid::new(),
+                        date,
+                        member_id: state.user.clone().unwrap_or_default(),
+                        article_id: item.barcode,
+                        amount: item.amount as u32,
+                    })
+                    .collect();
+                return Task::future(database::add_sales(pool, sales));
+            }
+        }
+        Message::SalesSaved => {
+            info!("Sales saved");
             state.user = None;
             state.items.clear();
             state.show_sale_confirmation = true;
             return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
                 Message::HideSaleConfirmation
             });
+        }
+        Message::SavingSalesFailed => {
+            error!("Failed to save sales");
         }
         Message::Cancel => {
             info!("Cancelling sale");
