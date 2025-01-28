@@ -6,6 +6,7 @@ use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::error;
 
 pub struct State {
     pub pool: Option<SqlitePool>,
@@ -132,10 +133,10 @@ pub fn update(state: &mut State, message: Message) -> Task<Message> {
             state.pool = Some(pool);
         }
         Message::DatabaseConnectionFailed => {
-            eprintln!("Failed to connect to database");
+            error!("Failed to connect to database");
         }
         Message::DatabaseMigrationFailed => {
-            eprintln!("Failed to run database migrations");
+            error!("Failed to run database migrations");
         }
         Message::KeyPress(Key::Character(c)) => {
             state.input.push_str(c.as_str());

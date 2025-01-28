@@ -14,6 +14,8 @@ struct Options {
 }
 
 pub fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let options = <Options as clap::Parser>::parse();
 
     // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.

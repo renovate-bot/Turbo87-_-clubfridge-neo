@@ -16,6 +16,8 @@ serde = { version = "=1.0.217", features = ["derive"] }
 serde_json = "=1.0.137"
 sqlx = { version = "=0.8.3", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "=1.43.0", features = ["time"] }
+tracing = "=0.1.41"
+tracing-subscriber = "=0.3.19"
 
 [dev-dependencies]
 tokio = { version = "=1.43.0", features = ["macros"] }
