@@ -37,7 +37,7 @@ pub fn view(state: &State) -> Element<Message> {
             .height(Fill)
             .width(Fill)
             .anchor_bottom(),
-        text(format!("Summe: € {sum:.2}"))
+        text(format!("Summe: {sum:.2}€"))
             .size(24)
             .align_x(Right)
             .width(Fill),
@@ -109,17 +109,18 @@ fn items(items: &[Item]) -> Element<Message> {
         )
         .width(Fill)
         .spacing(10),
-        column(
-            items
-                .iter()
-                .map(|item| { text(format!("{:.2}€", item.price,)).size(24).into() })
-        )
+        column(items.iter().map(|item| {
+            text(format!("{:.2}€", item.price))
+                .size(24)
+                .color(color!(0x888888))
+                .into()
+        }))
         .align_x(Right)
         .spacing(10),
         column(
             items
                 .iter()
-                .map(|item| { text(format!("Gesamt {:.2}€", item.total())).size(24).into() })
+                .map(|item| { text(format!("{:.2}€", item.total())).size(24).into() })
         )
         .align_x(Right)
         .spacing(10),
