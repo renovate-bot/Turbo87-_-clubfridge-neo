@@ -1,4 +1,3 @@
-use crate::config::Config;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::Task;
@@ -9,9 +8,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 pub struct State {
-    #[allow(dead_code)]
-    pub config: Config,
-
     pub pool: Option<SqlitePool>,
 
     pub articles: HashMap<String, Article>,
@@ -24,7 +20,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn from_config(config: Config) -> State {
+    pub fn new() -> State {
         let articles = HashMap::from_iter(
             Article::dummies()
                 .into_iter()
@@ -33,7 +29,6 @@ impl State {
         let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
 
         Self {
-            config,
             pool: None,
             articles,
             users,
@@ -238,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_initial_state() {
-        let state = State::from_config(Config::dummy());
+        let state = State::new();
         assert_eq!(state.user, None);
         assert_eq!(state.input, "");
         assert_eq!(state.items.len(), 0);
@@ -247,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_happy_path() {
-        let mut state = State::from_config(Config::dummy());
+        let mut state = State::new();
 
         input(&mut state, "0005635570");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
