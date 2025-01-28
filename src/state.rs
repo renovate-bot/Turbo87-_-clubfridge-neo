@@ -4,12 +4,15 @@ use iced::keyboard::Key;
 use iced::Task;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::time::Duration;
 
 pub struct State {
     #[allow(dead_code)]
     pub config: Config,
+
+    pub pool: Option<SqlitePool>,
 
     pub articles: HashMap<String, Article>,
     pub users: HashMap<String, String>,
@@ -31,6 +34,7 @@ impl State {
 
         Self {
             config,
+            pool: None,
             articles,
             users,
             user: None,
@@ -122,10 +126,22 @@ pub enum Message {
     Pay,
     Cancel,
     HideSaleConfirmation,
+    DatabaseConnected(SqlitePool),
+    DatabaseConnectionFailed,
+    DatabaseMigrationFailed,
 }
 
 pub fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
+        Message::DatabaseConnected(pool) => {
+            state.pool = Some(pool);
+        }
+        Message::DatabaseConnectionFailed => {
+            eprintln!("Failed to connect to database");
+        }
+        Message::DatabaseMigrationFailed => {
+            eprintln!("Failed to run database migrations");
+        }
         Message::KeyPress(Key::Character(c)) => {
             state.input.push_str(c.as_str());
             state.show_sale_confirmation = false;
