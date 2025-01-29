@@ -1,7 +1,7 @@
 use crate::database;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::{window, Subscription, Task};
+use iced::{application, window, Subscription, Task};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
@@ -31,7 +31,16 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> (State, Task<Message>) {
+    pub fn run() -> iced::Result {
+        application("ClubFridge neo", Self::update, Self::view)
+            .theme(Self::theme)
+            .subscription(Self::subscription)
+            .resizable(true)
+            .window_size((800., 480.))
+            .run_with(Self::new)
+    }
+
+    pub fn new() -> (Self, Task<Message>) {
         let options = <Options as clap::Parser>::parse();
 
         // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
