@@ -1,4 +1,5 @@
 use crate::database;
+use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
@@ -18,16 +19,15 @@ struct Options {
     fullscreen: bool,
 }
 
-pub struct ClubFridge {
-    pub pool: Option<SqlitePool>,
+pub enum ClubFridge {
+    Starting(StartingClubFridge),
+    Running(RunningClubFridge),
+}
 
-    pub articles: HashMap<String, Article>,
-    pub users: HashMap<String, String>,
-
-    pub user: Option<String>,
-    pub input: String,
-    pub items: Vec<Item>,
-    pub show_sale_confirmation: bool,
+impl Default for ClubFridge {
+    fn default() -> Self {
+        Self::Starting(Default::default())
+    }
 }
 
 impl ClubFridge {
@@ -52,30 +52,112 @@ impl ClubFridge {
             })
             .unwrap_or(Task::none());
 
-        let connect_task = Task::future(database::connect());
+        let connect_task = Task::future(database::connect().map(|result| match result {
+            Ok(pool) => Message::DatabaseConnected(pool),
+            Err(err) => {
+                error!("Failed to connect to database: {err}");
+                Message::DatabaseConnectionFailed
+            }
+        }));
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
-        let articles = HashMap::from_iter(
-            Article::dummies()
-                .into_iter()
-                .map(|article| (article.barcode.clone(), article)),
-        );
-        let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
-
-        let state = Self {
-            pool: None,
-            articles,
-            users,
-            user: None,
-            input: String::new(),
-            items: vec![],
-            show_sale_confirmation: false,
-        };
-
-        (state, startup_task)
+        (Self::default(), startup_task)
     }
 
+    pub fn subscription(&self) -> Subscription<Message> {
+        match self {
+            Self::Starting(cf) => cf.subscription(),
+            Self::Running(cf) => cf.subscription(),
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match self {
+            Self::Starting(cf) => {
+                let task = cf.update(message);
+
+                if cf.pool.is_some() && cf.migrations_finished {
+                    *self = Self::Running(RunningClubFridge {
+                        pool: cf.pool.take().unwrap(),
+                        articles: Article::dummies()
+                            .into_iter()
+                            .map(|article| (article.barcode.clone(), article))
+                            .collect(),
+                        users: HashMap::from([(
+                            "0005635570".to_string(),
+                            "Tobias Bieniek".to_string(),
+                        )]),
+                        user: None,
+                        input: String::new(),
+                        items: Vec::new(),
+                        show_sale_confirmation: false,
+                    });
+                }
+
+                task
+            }
+            Self::Running(cf) => cf.update(message),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct StartingClubFridge {
+    pub pool: Option<SqlitePool>,
+    pub migrations_finished: bool,
+}
+
+impl StartingClubFridge {
+    pub fn subscription(&self) -> Subscription<Message> {
+        Subscription::none()
+    }
+
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::DatabaseConnected(pool) => {
+                info!("Connected to database");
+                let future = database::run_migrations(pool.clone()).map(|result| match result {
+                    Ok(()) => Message::DatabaseMigrated,
+                    Err(err) => {
+                        error!("Failed to run database migrations: {err}");
+                        Message::DatabaseMigrationFailed
+                    }
+                });
+
+                self.pool = Some(pool);
+                return Task::future(future);
+            }
+            Message::DatabaseConnectionFailed => {
+                error!("Failed to connect to database");
+            }
+            Message::DatabaseMigrated => {
+                info!("Database migrations finished");
+                self.migrations_finished = true;
+            }
+            Message::DatabaseMigrationFailed => {
+                error!("Failed to run database migrations");
+            }
+            _ => {}
+        }
+
+        Task::none()
+    }
+}
+
+pub struct RunningClubFridge {
+    pub pool: SqlitePool,
+
+    pub articles: HashMap<String, Article>,
+    pub users: HashMap<String, String>,
+
+    pub user: Option<String>,
+    pub input: String,
+    pub items: Vec<Item>,
+    pub show_sale_confirmation: bool,
+}
+
+impl RunningClubFridge {
     pub fn subscription(&self) -> Subscription<Message> {
         iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)))
     }
@@ -156,32 +238,24 @@ impl Item {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    DatabaseConnected(SqlitePool),
+    DatabaseConnectionFailed,
+    DatabaseMigrated,
+    DatabaseMigrationFailed,
+
     KeyPress(Key),
     SetUser { keycode: String },
     AddToSale { barcode: String },
     Pay,
     Cancel,
     HideSaleConfirmation,
-    DatabaseConnected(SqlitePool),
-    DatabaseConnectionFailed,
-    DatabaseMigrationFailed,
     SalesSaved,
     SavingSalesFailed,
 }
 
-impl ClubFridge {
+impl RunningClubFridge {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::DatabaseConnected(pool) => {
-                info!("Connected to database");
-                self.pool = Some(pool);
-            }
-            Message::DatabaseConnectionFailed => {
-                error!("Failed to connect to database");
-            }
-            Message::DatabaseMigrationFailed => {
-                error!("Failed to run database migrations");
-            }
             Message::KeyPress(Key::Character(c)) => {
                 debug!("Key pressed: {c:?}");
                 self.input.push_str(c.as_str());
@@ -249,21 +323,27 @@ impl ClubFridge {
             }
             Message::Pay => {
                 info!("Processing sale");
-                if let Some(pool) = self.pool.clone() {
-                    let date = jiff::Zoned::now().date();
+                let pool = self.pool.clone();
+                let date = jiff::Zoned::now().date();
 
-                    let sales = mem::take(&mut self.items)
-                        .into_iter()
-                        .map(|item| database::NewSale {
-                            id: Ulid::new(),
-                            date,
-                            member_id: self.user.clone().unwrap_or_default(),
-                            article_id: item.barcode,
-                            amount: item.amount as u32,
-                        })
-                        .collect();
-                    return Task::future(database::add_sales(pool, sales));
-                }
+                let sales = mem::take(&mut self.items)
+                    .into_iter()
+                    .map(|item| database::NewSale {
+                        id: Ulid::new(),
+                        date,
+                        member_id: self.user.clone().unwrap_or_default(),
+                        article_id: item.barcode,
+                        amount: item.amount as u32,
+                    })
+                    .collect();
+
+                return Task::future(database::add_sales(pool, sales).map(|result| match result {
+                    Ok(()) => Message::SalesSaved,
+                    Err(err) => {
+                        error!("Failed to save sales: {err}");
+                        Message::SavingSalesFailed
+                    }
+                }));
             }
             Message::SalesSaved => {
                 info!("Sales saved");
@@ -297,7 +377,7 @@ impl ClubFridge {
 mod tests {
     use super::*;
 
-    fn input(cf: &mut ClubFridge, input: &str) {
+    fn input(cf: &mut RunningClubFridge, input: &str) {
         for c in input.chars() {
             let char = c.to_string().into();
             let _ = cf.update(Message::KeyPress(Key::Character(char)));
@@ -306,18 +386,23 @@ mod tests {
         let _ = cf.update(Message::KeyPress(Key::Named(Named::Enter)));
     }
 
-    #[test]
-    fn test_initial_state() {
+    #[tokio::test]
+    async fn test_initial_state() {
         let (cf, _) = ClubFridge::new();
-        assert_eq!(cf.user, None);
-        assert_eq!(cf.input, "");
-        assert_eq!(cf.items.len(), 0);
-        assert!(!cf.show_sale_confirmation);
+        assert!(matches!(cf, ClubFridge::Starting(_)));
     }
 
     #[tokio::test]
     async fn test_happy_path() {
         let (mut cf, _) = ClubFridge::new();
+        let _ = cf.update(Message::DatabaseConnected(
+            database::connect().await.unwrap(),
+        ));
+        let _ = cf.update(Message::DatabaseMigrated);
+
+        let ClubFridge::Running(mut cf) = cf else {
+            panic!("Expected ClubFridge::Running");
+        };
 
         input(&mut cf, "0005635570");
         assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");

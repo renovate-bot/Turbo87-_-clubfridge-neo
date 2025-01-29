@@ -1,4 +1,4 @@
-use crate::state::{ClubFridge, Item, Message};
+use crate::state::{ClubFridge, Item, Message, RunningClubFridge, StartingClubFridge};
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{color, Center, Element, Fill, Right, Theme};
 use rust_decimal::Decimal;
@@ -18,6 +18,46 @@ impl ClubFridge {
         )))
     }
 
+    pub fn view(&self) -> Element<Message> {
+        match self {
+            ClubFridge::Starting(cf) => cf.view(),
+            ClubFridge::Running(cf) => cf.view(),
+        }
+    }
+}
+
+impl StartingClubFridge {
+    pub fn view(&self) -> Element<Message> {
+        let title = text("ClubFridge neo")
+            .size(36)
+            .color(color!(0xffffff))
+            .width(Fill)
+            .align_x(Center);
+
+        let status = if self.pool.is_none() {
+            "Connecting to database…"
+        } else if !self.migrations_finished {
+            "Running database migrations…"
+        } else {
+            "Starting ClubFridge…"
+        };
+
+        let status = text(status)
+            .color(color!(0xffee12))
+            .size(24)
+            .width(Fill)
+            .align_x(Center);
+
+        container(column![title, status].spacing(30))
+            .style(|_theme: &Theme| container::background(color!(0x000000)))
+            .height(Fill)
+            .align_y(Center)
+            .padding([20, 30])
+            .into()
+    }
+}
+
+impl RunningClubFridge {
     pub fn view(&self) -> Element<Message> {
         let title = self
             .user
