@@ -1,7 +1,7 @@
 use crate::database;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::{window, Task};
+use iced::{window, Subscription, Task};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
@@ -65,6 +65,10 @@ impl State {
         };
 
         (state, startup_task)
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)))
     }
 }
 
