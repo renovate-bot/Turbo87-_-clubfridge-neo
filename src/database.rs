@@ -6,13 +6,8 @@ use tracing::info;
 use ulid::Ulid;
 
 #[tracing::instrument]
-pub async fn connect() -> sqlx::Result<Pool<Sqlite>> {
+pub async fn connect(options: SqliteConnectOptions) -> sqlx::Result<Pool<Sqlite>> {
     info!("Connecting to database…");
-
-    let options = SqliteConnectOptions::new()
-        .filename("clubfridge.db")
-        .create_if_missing(true);
-
     SqlitePoolOptions::new().connect_with(options).await
 }
 

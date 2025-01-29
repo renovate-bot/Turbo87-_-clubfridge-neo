@@ -4,6 +4,7 @@ use crate::starting::StartingClubFridge;
 use iced::futures::FutureExt;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
+use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tracing::error;
 
@@ -12,6 +13,10 @@ pub struct Options {
     /// Run in fullscreen
     #[arg(long)]
     fullscreen: bool,
+
+    /// Run in fullscreen
+    #[arg(long, default_value = "clubfridge.db?mode=rwc")]
+    database: SqliteConnectOptions,
 }
 
 pub enum ClubFridge {
@@ -45,13 +50,16 @@ impl ClubFridge {
             })
             .unwrap_or(Task::none());
 
-        let connect_task = Task::future(database::connect().map(|result| match result {
-            Ok(pool) => Message::DatabaseConnected(pool),
-            Err(err) => {
-                error!("Failed to connect to database: {err}");
-                Message::DatabaseConnectionFailed
-            }
-        }));
+        let connect_task =
+            Task::future(
+                database::connect(options.database).map(|result| match result {
+                    Ok(pool) => Message::DatabaseConnected(pool),
+                    Err(err) => {
+                        error!("Failed to connect to database: {err}");
+                        Message::DatabaseConnectionFailed
+                    }
+                }),
+            );
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
