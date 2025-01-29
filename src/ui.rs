@@ -149,15 +149,18 @@ fn items(items: &[Item]) -> Element<Message> {
         column(
             items
                 .iter()
-                .map(|item| { text(&item.description).size(24).into() })
+                .map(|item| { text(&item.article.designation).size(24).into() })
         )
         .width(Fill)
         .spacing(10),
         column(items.iter().map(|item| {
-            text(format!("{:.2}€", item.price))
-                .size(24)
-                .color(color!(0x888888))
-                .into()
+            text(format!(
+                "{:.2}€",
+                item.article.current_price().unwrap_or_default()
+            ))
+            .size(24)
+            .color(color!(0x888888))
+            .into()
         }))
         .align_x(Right)
         .spacing(10),

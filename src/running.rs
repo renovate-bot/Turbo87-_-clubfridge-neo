@@ -7,7 +7,6 @@ use iced::{Subscription, Task};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
-use std::collections::HashMap;
 use std::mem;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
@@ -15,8 +14,6 @@ use ulid::Ulid;
 
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
-
-    pub articles: HashMap<String, Article>,
 
     pub user: Option<database::Member>,
     pub input: String,
@@ -30,76 +27,15 @@ impl RunningClubFridge {
     }
 }
 
-#[derive(Debug)]
-pub struct Article {
-    pub barcode: String,
-    pub description: String,
-    pub prices: Vec<Price>,
-}
-
-impl Article {
-    pub fn current_price(&self) -> Option<Decimal> {
-        self.price_for_date(&jiff::Zoned::now().date())
-    }
-
-    pub fn price_for_date(&self, date: &jiff::civil::Date) -> Option<Decimal> {
-        self.prices
-            .iter()
-            .find(|price| price.valid_from <= *date && price.valid_to >= *date)
-            .map(|price| price.unit_price)
-    }
-
-    pub fn dummies() -> Vec<Article> {
-        vec![
-            Article {
-                barcode: "3800235265659".to_string(),
-                description: "Gloriette Cola Mix".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(0.9),
-                }],
-            },
-            Article {
-                barcode: "x001wfi0uh".to_string(),
-                description: "Bratwurst".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(1.5),
-                }],
-            },
-            Article {
-                barcode: "3800235266700".to_string(),
-                description: "Erdinger Weissbier 0.5L".to_string(),
-                prices: vec![Price {
-                    valid_from: jiff::civil::date(2000, 1, 1),
-                    valid_to: jiff::civil::date(2999, 12, 31),
-                    unit_price: dec!(1.2),
-                }],
-            },
-        ]
-    }
-}
-
-#[derive(Debug)]
-pub struct Price {
-    pub valid_from: jiff::civil::Date,
-    pub valid_to: jiff::civil::Date,
-    pub unit_price: Decimal,
-}
-
 #[derive(Debug, Clone)]
 pub struct Item {
-    pub barcode: String,
     pub amount: u16,
-    pub description: String,
-    pub price: Decimal,
+    pub article: database::Article,
 }
 
 impl Item {
     pub fn total(&self) -> Decimal {
-        self.price * Decimal::from(self.amount)
+        Decimal::from(self.amount) * self.article.current_price().unwrap_or_default()
     }
 }
 
@@ -115,7 +51,21 @@ impl RunningClubFridge {
                 debug!("Key pressed: Enter");
                 let task = if self.user.is_some() {
                     let barcode = self.input.clone();
-                    Task::done(Message::AddToSale { barcode })
+                    Task::future(database::Article::find_by_barcode(
+                        self.pool.clone(),
+                        barcode.clone(),
+                    ))
+                    .then(move |result| match result {
+                        Ok(Some(article)) => Task::done(Message::AddToSale(article)),
+                        Ok(None) => {
+                            warn!("No article found for barcode: {barcode}");
+                            Task::none()
+                        }
+                        Err(err) => {
+                            error!("Failed to find article: {err}");
+                            Task::none()
+                        }
+                    })
                 } else {
                     let keycode = self.input.clone();
                     Task::future(database::Member::find_by_keycode(
@@ -143,8 +93,18 @@ impl RunningClubFridge {
             #[cfg(debug_assertions)]
             Message::KeyPress(Key::Named(Named::Control)) => {
                 let task = if self.user.is_some() {
-                    let barcode = self.articles.values().next().unwrap().barcode.clone();
-                    Task::done(Message::AddToSale { barcode })
+                    let ulid = Ulid::new().to_string();
+                    Task::done(Message::AddToSale(database::Article {
+                        id: ulid.clone(),
+                        designation: ulid,
+                        prices: vec![{
+                            database::Price {
+                                valid_from: jiff::civil::Date::constant(2000, 1, 1),
+                                valid_to: jiff::civil::Date::constant(2999, 12, 31),
+                                unit_price: dec!(0.9),
+                            }
+                        }],
+                    }))
                 } else {
                     Task::done(Message::SetUser(database::Member {
                         id: "11011".to_string(),
@@ -158,27 +118,18 @@ impl RunningClubFridge {
 
                 return task;
             }
-            Message::AddToSale { barcode } => {
-                info!("Adding article to sale: {barcode}");
-                if self.user.is_some() {
-                    if let Some(article) = self.articles.get(&barcode) {
-                        if let Some(price) = article.current_price() {
-                            self.items
-                                .iter_mut()
-                                .find(|item| item.barcode == article.barcode)
-                                .map(|item| {
-                                    item.amount += 1;
-                                })
-                                .unwrap_or_else(|| {
-                                    self.items.push(Item {
-                                        barcode: article.barcode.clone(),
-                                        amount: 1,
-                                        description: article.description.clone(),
-                                        price,
-                                    });
-                                });
-                        }
-                    }
+            Message::AddToSale(article) => {
+                info!("Adding article to sale: {article:?}");
+                if self.user.is_some() && article.current_price().is_some() {
+                    self.items
+                        .iter_mut()
+                        .find(|item| item.article.id == article.id)
+                        .map(|item| {
+                            item.amount += 1;
+                        })
+                        .unwrap_or_else(|| {
+                            self.items.push(Item { amount: 1, article });
+                        });
                 }
             }
             Message::SetUser(member) => {
@@ -201,7 +152,7 @@ impl RunningClubFridge {
                             .map(|user| &user.id)
                             .cloned()
                             .unwrap_or_default(),
-                        article_id: item.barcode,
+                        article_id: item.article.id,
                         amount: item.amount as u32,
                     })
                     .collect();
@@ -282,10 +233,8 @@ mod tests {
             "0005635570"
         );
         assert_eq!(cf.items.len(), 1);
-        assert_eq!(cf.items[0].barcode, "3800235265659");
-        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.items[0].amount, 1);
-        assert_eq!(cf.items[0].price, dec!(0.9));
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235266700");
@@ -294,14 +243,10 @@ mod tests {
             "0005635570"
         );
         assert_eq!(cf.items.len(), 2);
-        assert_eq!(cf.items[0].barcode, "3800235265659");
-        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.items[0].amount, 1);
-        assert_eq!(cf.items[0].price, dec!(0.9));
-        assert_eq!(cf.items[1].barcode, "3800235266700");
-        assert_eq!(cf.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.items[1].article.designation, "Erdinger Weissbier 0.5L");
         assert_eq!(cf.items[1].amount, 1);
-        assert_eq!(cf.items[1].price, dec!(1.2));
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
@@ -310,14 +255,10 @@ mod tests {
             "0005635570"
         );
         assert_eq!(cf.items.len(), 2);
-        assert_eq!(cf.items[0].barcode, "3800235265659");
-        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.items[0].amount, 2);
-        assert_eq!(cf.items[0].price, dec!(0.9));
-        assert_eq!(cf.items[1].barcode, "3800235266700");
-        assert_eq!(cf.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.items[1].article.designation, "Erdinger Weissbier 0.5L");
         assert_eq!(cf.items[1].amount, 1);
-        assert_eq!(cf.items[1].price, dec!(1.2));
         assert!(!cf.show_sale_confirmation);
 
         let _ = cf.update(Message::Pay);

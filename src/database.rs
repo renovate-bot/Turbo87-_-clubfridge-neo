@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite, SqliteConnection, SqlitePool};
@@ -42,6 +43,47 @@ impl Member {
         .bind(keycode)
         .fetch_optional(&pool)
         .await
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Article {
+    pub id: String,
+    pub designation: String,
+    #[sqlx(json)]
+    pub prices: Vec<Price>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct Price {
+    pub valid_from: jiff::civil::Date,
+    pub valid_to: jiff::civil::Date,
+    pub unit_price: Decimal,
+}
+
+impl Article {
+    pub async fn find_by_barcode(pool: SqlitePool, barcode: String) -> sqlx::Result<Option<Self>> {
+        sqlx::query_as(
+            r#"
+            SELECT id, designation, prices
+            FROM articles
+            WHERE barcode = $1
+            "#,
+        )
+        .bind(barcode)
+        .fetch_optional(&pool)
+        .await
+    }
+
+    pub fn current_price(&self) -> Option<Decimal> {
+        self.price_for_date(&jiff::Zoned::now().date())
+    }
+
+    pub fn price_for_date(&self, date: &jiff::civil::Date) -> Option<Decimal> {
+        self.prices
+            .iter()
+            .find(|price| price.valid_from <= *date && price.valid_to >= *date)
+            .map(|price| price.unit_price)
     }
 }
 

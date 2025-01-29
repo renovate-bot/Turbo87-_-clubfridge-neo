@@ -1,5 +1,5 @@
 use crate::database;
-use crate::running::{Article, RunningClubFridge};
+use crate::running::RunningClubFridge;
 use crate::starting::StartingClubFridge;
 use iced::futures::FutureExt;
 use iced::keyboard::Key;
@@ -71,10 +71,6 @@ impl ClubFridge {
         if let Message::StartupComplete(pool) = message {
             *self = Self::Running(RunningClubFridge {
                 pool,
-                articles: Article::dummies()
-                    .into_iter()
-                    .map(|article| (article.barcode.clone(), article))
-                    .collect(),
                 user: None,
                 input: String::new(),
                 items: Vec::new(),
@@ -102,7 +98,7 @@ pub enum Message {
 
     KeyPress(Key),
     SetUser(database::Member),
-    AddToSale { barcode: String },
+    AddToSale(database::Article),
     Pay,
     Cancel,
     HideSaleConfirmation,
