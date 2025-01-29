@@ -131,15 +131,13 @@ impl RunningClubFridge {
             Message::AddSale(article) => {
                 info!("Adding article to sale: {article:?}");
                 if self.user.is_some() && article.current_price().is_some() {
-                    self.sales
-                        .iter_mut()
-                        .find(|item| item.article.id == article.id)
-                        .map(|item| {
-                            item.amount += 1;
-                        })
-                        .unwrap_or_else(|| {
-                            self.sales.push(Sale { amount: 1, article });
-                        });
+                    let sales = &mut self.sales;
+
+                    let existing_sale = sales.iter_mut().find(|item| item.article.id == article.id);
+                    match existing_sale {
+                        Some(item) => item.amount += 1,
+                        None => sales.push(Sale { amount: 1, article }),
+                    }
                 }
             }
             Message::SetUser(member) => {
