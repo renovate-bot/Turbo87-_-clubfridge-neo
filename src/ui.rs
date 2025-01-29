@@ -30,11 +30,7 @@ impl ClubFridge {
 
 impl StartingClubFridge {
     pub fn view(&self) -> Element<Message> {
-        let title = text("ClubFridge neo")
-            .size(36)
-            .color(color!(0xffffff))
-            .width(Fill)
-            .align_x(Center);
+        let title = text("ClubFridge neo").size(36).width(Fill).align_x(Center);
 
         let status = if self.pool.is_none() {
             "Connecting to database…"
@@ -51,7 +47,6 @@ impl StartingClubFridge {
             .align_x(Center);
 
         container(column![title, status].spacing(30))
-            .style(|_theme: &Theme| container::background(color!(0x000000)))
             .height(Fill)
             .align_y(Center)
             .padding([20, 30])
@@ -130,10 +125,7 @@ impl RunningClubFridge {
             );
         }
 
-        container(stack)
-            .style(|_theme: &Theme| container::background(color!(0x000000)))
-            .padding([20, 30])
-            .into()
+        container(stack).padding([20, 30]).into()
     }
 }
 
