@@ -7,8 +7,8 @@ use iced::{application, window, Subscription, Task};
 use sqlx::SqlitePool;
 use tracing::error;
 
-#[derive(Debug, clap::Parser)]
-struct Options {
+#[derive(Debug, Default, clap::Parser)]
+pub struct Options {
     /// Run in fullscreen
     #[arg(long)]
     fullscreen: bool,
@@ -26,18 +26,16 @@ impl Default for ClubFridge {
 }
 
 impl ClubFridge {
-    pub fn run() -> iced::Result {
+    pub fn run(options: Options) -> iced::Result {
         application("ClubFridge neo", Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
             .resizable(true)
             .window_size((800., 480.))
-            .run_with(Self::new)
+            .run_with(|| Self::new(options))
     }
 
-    pub fn new() -> (Self, Task<Message>) {
-        let options = <Options as clap::Parser>::parse();
-
+    pub fn new(options: Options) -> (Self, Task<Message>) {
         // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
         let fullscreen_task = options
             .fullscreen
@@ -112,7 +110,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_initial_state() {
-        let (cf, _) = ClubFridge::new();
+        let (cf, _) = ClubFridge::new(Default::default());
         assert!(matches!(cf, ClubFridge::Starting(_)));
     }
 }

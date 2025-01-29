@@ -209,7 +209,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_happy_path() {
-        let (mut cf, _) = ClubFridge::new();
+        let (mut cf, _) = ClubFridge::new(Default::default());
         let _ = cf.update(Message::DatabaseConnected(
             database::connect().await.unwrap(),
         ));
