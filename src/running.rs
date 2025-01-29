@@ -14,6 +14,8 @@ use ulid::Ulid;
 
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
+    #[expect(dead_code)]
+    pub vereinsflieger: crate::vereinsflieger::Client,
 
     pub user: Option<database::Member>,
     pub input: String,
@@ -22,9 +24,10 @@ pub struct RunningClubFridge {
 }
 
 impl RunningClubFridge {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: SqlitePool, vereinsflieger: crate::vereinsflieger::Client) -> Self {
         Self {
             pool,
+            vereinsflieger,
             user: None,
             input: String::new(),
             sales: Vec::new(),
@@ -216,11 +219,13 @@ mod tests {
     async fn test_happy_path() {
         let (mut cf, _) = ClubFridge::new(Default::default());
 
+        let credentials = database::Credentials::dummy();
+
         let db_options = SqliteConnectOptions::default().in_memory(true);
         let pool = database::connect(db_options).await.unwrap();
         let _ = cf.update(Message::DatabaseConnected(pool.clone()));
         let _ = cf.update(Message::DatabaseMigrated);
-        let _ = cf.update(Message::StartupComplete(pool));
+        let _ = cf.update(Message::StartupComplete(pool, credentials));
 
         let ClubFridge::Running(mut cf) = cf else {
             panic!("Expected ClubFridge::Running");

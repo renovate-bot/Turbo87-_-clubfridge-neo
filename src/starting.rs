@@ -38,12 +38,30 @@ impl StartingClubFridge {
                 info!("Database migrations finished");
                 self.migrations_finished = true;
 
-                if let Some(pool) = self.pool.take() {
-                    return Task::done(Message::StartupComplete(pool));
+                if let Some(pool) = &self.pool {
+                    let future =
+                        database::Credentials::find_first(pool.clone()).map(
+                            |result| match result {
+                                Ok(Some(credentials)) => Message::CredentialsFound(credentials),
+                                _ => Message::CredentialLookupFailed,
+                            },
+                        );
+
+                    return Task::future(future);
                 }
             }
             Message::DatabaseMigrationFailed => {
                 error!("Failed to run database migrations");
+            }
+            Message::CredentialsFound(credentials) => {
+                info!("Found credentials in database: {credentials:?}");
+
+                if let Some(pool) = self.pool.take() {
+                    return Task::done(Message::StartupComplete(pool, credentials));
+                }
+            }
+            Message::CredentialLookupFailed => {
+                error!("Failed to find credentials in database");
             }
             _ => {}
         }

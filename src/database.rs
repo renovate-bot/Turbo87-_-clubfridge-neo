@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use secrecy::SecretString;
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite, SqliteConnection, SqlitePool};
@@ -15,6 +16,39 @@ pub async fn connect(options: SqliteConnectOptions) -> sqlx::Result<Pool<Sqlite>
 pub async fn run_migrations(pool: SqlitePool) -> Result<(), MigrateError> {
     info!("Running database migrations…");
     sqlx::migrate!().run(&pool).await
+}
+
+#[expect(dead_code)]
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Credentials {
+    pub club_id: u32,
+    pub app_key: String,
+    pub username: String,
+    #[sqlx(try_from = "String")]
+    pub password: SecretString,
+}
+
+impl Credentials {
+    pub async fn find_first(pool: SqlitePool) -> sqlx::Result<Option<Self>> {
+        sqlx::query_as(
+            r#"
+            SELECT club_id, app_key, username, password
+            FROM credentials
+            "#,
+        )
+        .fetch_optional(&pool)
+        .await
+    }
+
+    #[cfg(test)]
+    pub fn dummy() -> Self {
+        Self {
+            club_id: 1,
+            app_key: "123456789".to_string(),
+            username: "foo".to_string(),
+            password: "bar".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]

@@ -74,8 +74,9 @@ impl ClubFridge {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::StartupComplete(pool) = message {
-            *self = Self::Running(RunningClubFridge::new(pool));
+        if let Message::StartupComplete(pool, credentials) = message {
+            let vereinsflieger = crate::vereinsflieger::Client::new(credentials);
+            *self = Self::Running(RunningClubFridge::new(pool, vereinsflieger));
             return Task::none();
         }
 
@@ -92,8 +93,10 @@ pub enum Message {
     DatabaseConnectionFailed,
     DatabaseMigrated,
     DatabaseMigrationFailed,
+    CredentialsFound(database::Credentials),
+    CredentialLookupFailed,
 
-    StartupComplete(SqlitePool),
+    StartupComplete(SqlitePool, database::Credentials),
 
     KeyPress(Key),
     SetUser(database::Member),

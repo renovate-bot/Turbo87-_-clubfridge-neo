@@ -3,6 +3,7 @@ mod running;
 mod starting;
 mod state;
 mod ui;
+mod vereinsflieger;
 
 use crate::state::{ClubFridge, Options};
 
