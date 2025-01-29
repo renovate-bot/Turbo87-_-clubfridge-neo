@@ -2,14 +2,14 @@ mod database;
 mod state;
 mod ui;
 
-use crate::state::{update, State};
+use crate::state::State;
 use crate::ui::{theme, view};
 use iced::application;
 
 pub fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    application("ClubFridge neo", update, view)
+    application("ClubFridge neo", State::update, view)
         .theme(theme)
         .subscription(State::subscription)
         .resizable(true)

@@ -160,127 +160,128 @@ pub enum Message {
     SavingSalesFailed,
 }
 
-pub fn update(state: &mut State, message: Message) -> Task<Message> {
-    match message {
-        Message::DatabaseConnected(pool) => {
-            info!("Connected to database");
-            state.pool = Some(pool);
-        }
-        Message::DatabaseConnectionFailed => {
-            error!("Failed to connect to database");
-        }
-        Message::DatabaseMigrationFailed => {
-            error!("Failed to run database migrations");
-        }
-        Message::KeyPress(Key::Character(c)) => {
-            debug!("Key pressed: {c:?}");
-            state.input.push_str(c.as_str());
-            state.show_sale_confirmation = false;
-        }
-        Message::KeyPress(Key::Named(Named::Enter)) => {
-            debug!("Key pressed: Enter");
-            let task = if state.user.is_some() {
-                let barcode = state.input.clone();
-                Task::done(Message::AddToSale { barcode })
-            } else {
-                let keycode = state.input.clone();
-                Task::done(Message::SetUser { keycode })
-            };
+impl State {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::DatabaseConnected(pool) => {
+                info!("Connected to database");
+                self.pool = Some(pool);
+            }
+            Message::DatabaseConnectionFailed => {
+                error!("Failed to connect to database");
+            }
+            Message::DatabaseMigrationFailed => {
+                error!("Failed to run database migrations");
+            }
+            Message::KeyPress(Key::Character(c)) => {
+                debug!("Key pressed: {c:?}");
+                self.input.push_str(c.as_str());
+                self.show_sale_confirmation = false;
+            }
+            Message::KeyPress(Key::Named(Named::Enter)) => {
+                debug!("Key pressed: Enter");
+                let task = if self.user.is_some() {
+                    let barcode = self.input.clone();
+                    Task::done(Message::AddToSale { barcode })
+                } else {
+                    let keycode = self.input.clone();
+                    Task::done(Message::SetUser { keycode })
+                };
 
-            state.input.clear();
-            state.show_sale_confirmation = false;
+                self.input.clear();
+                self.show_sale_confirmation = false;
 
-            return task;
-        }
-        #[cfg(debug_assertions)]
-        Message::KeyPress(Key::Named(Named::Control)) => {
-            let task = if state.user.is_some() {
-                let barcode = state.articles.values().next().unwrap().barcode.clone();
-                Task::done(Message::AddToSale { barcode })
-            } else {
-                let keycode = state.users.keys().next().unwrap().clone();
-                Task::done(Message::SetUser { keycode })
-            };
+                return task;
+            }
+            #[cfg(debug_assertions)]
+            Message::KeyPress(Key::Named(Named::Control)) => {
+                let task = if self.user.is_some() {
+                    let barcode = self.articles.values().next().unwrap().barcode.clone();
+                    Task::done(Message::AddToSale { barcode })
+                } else {
+                    let keycode = self.users.keys().next().unwrap().clone();
+                    Task::done(Message::SetUser { keycode })
+                };
 
-            state.show_sale_confirmation = false;
+                self.show_sale_confirmation = false;
 
-            return task;
-        }
-        Message::AddToSale { barcode } => {
-            info!("Adding article to sale: {barcode}");
-            if state.user.is_some() {
-                if let Some(article) = state.articles.get(&barcode) {
-                    if let Some(price) = article.current_price() {
-                        state
-                            .items
-                            .iter_mut()
-                            .find(|item| item.barcode == article.barcode)
-                            .map(|item| {
-                                item.amount += 1;
-                            })
-                            .unwrap_or_else(|| {
-                                state.items.push(Item {
-                                    barcode: article.barcode.clone(),
-                                    amount: 1,
-                                    description: article.description.clone(),
-                                    price,
+                return task;
+            }
+            Message::AddToSale { barcode } => {
+                info!("Adding article to sale: {barcode}");
+                if self.user.is_some() {
+                    if let Some(article) = self.articles.get(&barcode) {
+                        if let Some(price) = article.current_price() {
+                            self.items
+                                .iter_mut()
+                                .find(|item| item.barcode == article.barcode)
+                                .map(|item| {
+                                    item.amount += 1;
+                                })
+                                .unwrap_or_else(|| {
+                                    self.items.push(Item {
+                                        barcode: article.barcode.clone(),
+                                        amount: 1,
+                                        description: article.description.clone(),
+                                        price,
+                                    });
                                 });
-                            });
+                        }
                     }
                 }
             }
-        }
-        Message::SetUser { keycode } => {
-            if state.users.contains_key(&keycode) {
-                info!("Setting user: {keycode}");
-                state.user = Some(keycode);
-            } else {
-                warn!("Unknown user: {keycode}");
+            Message::SetUser { keycode } => {
+                if self.users.contains_key(&keycode) {
+                    info!("Setting user: {keycode}");
+                    self.user = Some(keycode);
+                } else {
+                    warn!("Unknown user: {keycode}");
+                }
             }
-        }
-        Message::Pay => {
-            info!("Processing sale");
-            if let Some(pool) = state.pool.clone() {
-                let date = jiff::Zoned::now().date();
+            Message::Pay => {
+                info!("Processing sale");
+                if let Some(pool) = self.pool.clone() {
+                    let date = jiff::Zoned::now().date();
 
-                let sales = mem::take(&mut state.items)
-                    .into_iter()
-                    .map(|item| database::NewSale {
-                        id: Ulid::new(),
-                        date,
-                        member_id: state.user.clone().unwrap_or_default(),
-                        article_id: item.barcode,
-                        amount: item.amount as u32,
-                    })
-                    .collect();
-                return Task::future(database::add_sales(pool, sales));
+                    let sales = mem::take(&mut self.items)
+                        .into_iter()
+                        .map(|item| database::NewSale {
+                            id: Ulid::new(),
+                            date,
+                            member_id: self.user.clone().unwrap_or_default(),
+                            article_id: item.barcode,
+                            amount: item.amount as u32,
+                        })
+                        .collect();
+                    return Task::future(database::add_sales(pool, sales));
+                }
             }
+            Message::SalesSaved => {
+                info!("Sales saved");
+                self.user = None;
+                self.items.clear();
+                self.show_sale_confirmation = true;
+                return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
+                    Message::HideSaleConfirmation
+                });
+            }
+            Message::SavingSalesFailed => {
+                error!("Failed to save sales");
+            }
+            Message::Cancel => {
+                info!("Cancelling sale");
+                self.user = None;
+                self.items.clear();
+            }
+            Message::HideSaleConfirmation => {
+                debug!("Hiding sale confirmation popup");
+                self.show_sale_confirmation = false;
+            }
+            _ => {}
         }
-        Message::SalesSaved => {
-            info!("Sales saved");
-            state.user = None;
-            state.items.clear();
-            state.show_sale_confirmation = true;
-            return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
-                Message::HideSaleConfirmation
-            });
-        }
-        Message::SavingSalesFailed => {
-            error!("Failed to save sales");
-        }
-        Message::Cancel => {
-            info!("Cancelling sale");
-            state.user = None;
-            state.items.clear();
-        }
-        Message::HideSaleConfirmation => {
-            debug!("Hiding sale confirmation popup");
-            state.show_sale_confirmation = false;
-        }
-        _ => {}
+
+        Task::none()
     }
-
-    Task::none()
 }
 
 #[cfg(test)]
@@ -290,10 +291,10 @@ mod tests {
     fn input(state: &mut State, input: &str) {
         for c in input.chars() {
             let char = c.to_string().into();
-            let _ = update(state, Message::KeyPress(Key::Character(char)));
+            let _ = state.update(Message::KeyPress(Key::Character(char)));
         }
 
-        let _ = update(state, Message::KeyPress(Key::Named(Named::Enter)));
+        let _ = state.update(Message::KeyPress(Key::Named(Named::Enter)));
     }
 
     #[test]
@@ -349,7 +350,7 @@ mod tests {
         assert_eq!(state.items[1].price, dec!(1.2));
         assert!(!state.show_sale_confirmation);
 
-        let _ = update(&mut state, Message::Pay);
+        let _ = state.update(Message::Pay);
         assert_eq!(state.user, None);
         assert_eq!(state.items.len(), 0);
         assert!(state.show_sale_confirmation);
