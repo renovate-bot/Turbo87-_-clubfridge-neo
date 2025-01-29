@@ -1,7 +1,7 @@
 use crate::database;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::Task;
+use iced::{window, Task};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
@@ -10,6 +10,13 @@ use std::mem;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use ulid::Ulid;
+
+#[derive(Debug, clap::Parser)]
+struct Options {
+    /// Run in fullscreen
+    #[arg(long)]
+    fullscreen: bool,
+}
 
 pub struct State {
     pub pool: Option<SqlitePool>,
@@ -24,7 +31,22 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> State {
+    pub fn new() -> (State, Task<Message>) {
+        let options = <Options as clap::Parser>::parse();
+
+        // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
+        let fullscreen_task = options
+            .fullscreen
+            .then(|| {
+                window::get_latest()
+                    .and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
+            })
+            .unwrap_or(Task::none());
+
+        let connect_task = Task::future(database::connect());
+
+        let startup_task = Task::batch([fullscreen_task, connect_task]);
+
         let articles = HashMap::from_iter(
             Article::dummies()
                 .into_iter()
@@ -32,7 +54,7 @@ impl State {
         );
         let users = HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]);
 
-        Self {
+        let state = Self {
             pool: None,
             articles,
             users,
@@ -40,7 +62,9 @@ impl State {
             input: String::new(),
             items: vec![],
             show_sale_confirmation: false,
-        }
+        };
+
+        (state, startup_task)
     }
 }
 
@@ -270,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_initial_state() {
-        let state = State::new();
+        let (state, _) = State::new();
         assert_eq!(state.user, None);
         assert_eq!(state.input, "");
         assert_eq!(state.items.len(), 0);
@@ -279,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_happy_path() {
-        let mut state = State::new();
+        let (mut state, _) = State::new();
 
         input(&mut state, "0005635570");
         assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
