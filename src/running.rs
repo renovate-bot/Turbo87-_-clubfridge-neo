@@ -59,46 +59,42 @@ impl RunningClubFridge {
             }
             Message::KeyPress(Key::Named(Named::Enter)) => {
                 debug!("Key pressed: Enter");
-                let task = if self.user.is_some() {
-                    let barcode = self.input.clone();
-                    Task::future(database::Article::find_by_barcode(
-                        self.pool.clone(),
-                        barcode.clone(),
-                    ))
-                    .then(move |result| match result {
-                        Ok(Some(article)) => Task::done(Message::AddSale(article)),
-                        Ok(None) => {
-                            warn!("No article found for barcode: {barcode}");
-                            Task::none()
-                        }
-                        Err(err) => {
-                            error!("Failed to find article: {err}");
-                            Task::none()
-                        }
-                    })
-                } else {
-                    let keycode = self.input.clone();
-                    Task::future(database::Member::find_by_keycode(
-                        self.pool.clone(),
-                        keycode.clone(),
-                    ))
-                    .then(move |result| match result {
-                        Ok(Some(member)) => Task::done(Message::SetUser(member)),
-                        Ok(None) => {
-                            warn!("No user found for keycode: {keycode}");
-                            Task::none()
-                        }
-                        Err(err) => {
-                            error!("Failed to find user: {err}");
-                            Task::none()
-                        }
-                    })
-                };
+                let input = mem::take(&mut self.input);
+                let pool = self.pool.clone();
 
-                self.input.clear();
                 self.show_sale_confirmation = false;
 
-                return task;
+                return if self.user.is_some() {
+                    Task::future(async move {
+                        match database::Article::find_by_barcode(pool, &input).await {
+                            Ok(Some(article)) => Some(Message::AddSale(article)),
+                            Ok(None) => {
+                                warn!("No article found for barcode: {input}");
+                                None
+                            }
+                            Err(err) => {
+                                error!("Failed to find article: {err}");
+                                None
+                            }
+                        }
+                    })
+                    .and_then(Task::done)
+                } else {
+                    Task::future(async move {
+                        match database::Member::find_by_keycode(pool, &input).await {
+                            Ok(Some(member)) => Some(Message::SetUser(member)),
+                            Ok(None) => {
+                                warn!("No user found for keycode: {input}");
+                                None
+                            }
+                            Err(err) => {
+                                error!("Failed to find user: {err}");
+                                None
+                            }
+                        }
+                    })
+                    .and_then(Task::done)
+                };
             }
             #[cfg(debug_assertions)]
             Message::KeyPress(Key::Named(Named::Control)) => {

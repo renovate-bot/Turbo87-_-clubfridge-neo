@@ -27,7 +27,7 @@ pub struct Member {
 }
 
 impl Member {
-    pub async fn find_by_keycode(pool: SqlitePool, keycode: String) -> sqlx::Result<Option<Self>> {
+    pub async fn find_by_keycode(pool: SqlitePool, keycode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
             SELECT members.id, firstname, lastname, nickname
@@ -57,7 +57,7 @@ pub struct Price {
 }
 
 impl Article {
-    pub async fn find_by_barcode(pool: SqlitePool, barcode: String) -> sqlx::Result<Option<Self>> {
+    pub async fn find_by_barcode(pool: SqlitePool, barcode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
             SELECT id, designation, prices
