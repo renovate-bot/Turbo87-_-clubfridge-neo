@@ -37,6 +37,10 @@ impl StartingClubFridge {
             Message::DatabaseMigrated => {
                 info!("Database migrations finished");
                 self.migrations_finished = true;
+
+                if let Some(pool) = self.pool.take() {
+                    return Task::done(Message::StartupComplete(pool));
+                }
             }
             Message::DatabaseMigrationFailed => {
                 error!("Failed to run database migrations");

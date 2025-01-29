@@ -69,30 +69,25 @@ impl ClubFridge {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        if let Message::StartupComplete(pool) = message {
+            *self = Self::Running(RunningClubFridge {
+                pool,
+                articles: Article::dummies()
+                    .into_iter()
+                    .map(|article| (article.barcode.clone(), article))
+                    .collect(),
+                users: HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]),
+                user: None,
+                input: String::new(),
+                items: Vec::new(),
+                show_sale_confirmation: false,
+            });
+
+            return Task::none();
+        }
+
         match self {
-            Self::Starting(cf) => {
-                let task = cf.update(message);
-
-                if cf.pool.is_some() && cf.migrations_finished {
-                    *self = Self::Running(RunningClubFridge {
-                        pool: cf.pool.take().unwrap(),
-                        articles: Article::dummies()
-                            .into_iter()
-                            .map(|article| (article.barcode.clone(), article))
-                            .collect(),
-                        users: HashMap::from([(
-                            "0005635570".to_string(),
-                            "Tobias Bieniek".to_string(),
-                        )]),
-                        user: None,
-                        input: String::new(),
-                        items: Vec::new(),
-                        show_sale_confirmation: false,
-                    });
-                }
-
-                task
-            }
+            Self::Starting(cf) => cf.update(message),
             Self::Running(cf) => cf.update(message),
         }
     }
@@ -104,6 +99,8 @@ pub enum Message {
     DatabaseConnectionFailed,
     DatabaseMigrated,
     DatabaseMigrationFailed,
+
+    StartupComplete(SqlitePool),
 
     KeyPress(Key),
     SetUser { keycode: String },
