@@ -2,12 +2,12 @@ mod database;
 mod state;
 mod ui;
 
-use crate::state::State;
+use crate::state::ClubFridge;
 
 pub fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    State::run()?;
+    ClubFridge::run()?;
 
     Ok(())
 }

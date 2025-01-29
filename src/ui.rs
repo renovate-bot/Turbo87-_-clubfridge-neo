@@ -1,10 +1,10 @@
-use crate::state::{Item, Message, State};
+use crate::state::{ClubFridge, Item, Message};
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{color, Center, Element, Fill, Right, Theme};
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
-impl State {
+impl ClubFridge {
     pub fn theme(&self) -> Theme {
         Theme::Custom(Arc::new(iced::theme::Custom::new(
             "clubfridge".to_string(),

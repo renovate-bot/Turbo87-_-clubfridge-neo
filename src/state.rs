@@ -18,7 +18,7 @@ struct Options {
     fullscreen: bool,
 }
 
-pub struct State {
+pub struct ClubFridge {
     pub pool: Option<SqlitePool>,
 
     pub articles: HashMap<String, Article>,
@@ -30,7 +30,7 @@ pub struct State {
     pub show_sale_confirmation: bool,
 }
 
-impl State {
+impl ClubFridge {
     pub fn run() -> iced::Result {
         application("ClubFridge neo", Self::update, Self::view)
             .theme(Self::theme)
@@ -169,7 +169,7 @@ pub enum Message {
     SavingSalesFailed,
 }
 
-impl State {
+impl ClubFridge {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::DatabaseConnected(pool) => {
@@ -297,71 +297,71 @@ impl State {
 mod tests {
     use super::*;
 
-    fn input(state: &mut State, input: &str) {
+    fn input(cf: &mut ClubFridge, input: &str) {
         for c in input.chars() {
             let char = c.to_string().into();
-            let _ = state.update(Message::KeyPress(Key::Character(char)));
+            let _ = cf.update(Message::KeyPress(Key::Character(char)));
         }
 
-        let _ = state.update(Message::KeyPress(Key::Named(Named::Enter)));
+        let _ = cf.update(Message::KeyPress(Key::Named(Named::Enter)));
     }
 
     #[test]
     fn test_initial_state() {
-        let (state, _) = State::new();
-        assert_eq!(state.user, None);
-        assert_eq!(state.input, "");
-        assert_eq!(state.items.len(), 0);
-        assert!(!state.show_sale_confirmation);
+        let (cf, _) = ClubFridge::new();
+        assert_eq!(cf.user, None);
+        assert_eq!(cf.input, "");
+        assert_eq!(cf.items.len(), 0);
+        assert!(!cf.show_sale_confirmation);
     }
 
     #[tokio::test]
     async fn test_happy_path() {
-        let (mut state, _) = State::new();
+        let (mut cf, _) = ClubFridge::new();
 
-        input(&mut state, "0005635570");
-        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
-        assert_eq!(state.items.len(), 0);
-        assert!(!state.show_sale_confirmation);
+        input(&mut cf, "0005635570");
+        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(cf.items.len(), 0);
+        assert!(!cf.show_sale_confirmation);
 
-        input(&mut state, "3800235265659");
-        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
-        assert_eq!(state.items.len(), 1);
-        assert_eq!(state.items[0].barcode, "3800235265659");
-        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
-        assert_eq!(state.items[0].amount, 1);
-        assert_eq!(state.items[0].price, dec!(0.9));
-        assert!(!state.show_sale_confirmation);
+        input(&mut cf, "3800235265659");
+        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(cf.items.len(), 1);
+        assert_eq!(cf.items[0].barcode, "3800235265659");
+        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].amount, 1);
+        assert_eq!(cf.items[0].price, dec!(0.9));
+        assert!(!cf.show_sale_confirmation);
 
-        input(&mut state, "3800235266700");
-        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
-        assert_eq!(state.items.len(), 2);
-        assert_eq!(state.items[0].barcode, "3800235265659");
-        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
-        assert_eq!(state.items[0].amount, 1);
-        assert_eq!(state.items[0].price, dec!(0.9));
-        assert_eq!(state.items[1].barcode, "3800235266700");
-        assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
-        assert_eq!(state.items[1].amount, 1);
-        assert_eq!(state.items[1].price, dec!(1.2));
-        assert!(!state.show_sale_confirmation);
+        input(&mut cf, "3800235266700");
+        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(cf.items.len(), 2);
+        assert_eq!(cf.items[0].barcode, "3800235265659");
+        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].amount, 1);
+        assert_eq!(cf.items[0].price, dec!(0.9));
+        assert_eq!(cf.items[1].barcode, "3800235266700");
+        assert_eq!(cf.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.items[1].amount, 1);
+        assert_eq!(cf.items[1].price, dec!(1.2));
+        assert!(!cf.show_sale_confirmation);
 
-        input(&mut state, "3800235265659");
-        assert_eq!(state.user.as_deref().unwrap_or_default(), "0005635570");
-        assert_eq!(state.items.len(), 2);
-        assert_eq!(state.items[0].barcode, "3800235265659");
-        assert_eq!(state.items[0].description, "Gloriette Cola Mix");
-        assert_eq!(state.items[0].amount, 2);
-        assert_eq!(state.items[0].price, dec!(0.9));
-        assert_eq!(state.items[1].barcode, "3800235266700");
-        assert_eq!(state.items[1].description, "Erdinger Weissbier 0.5L");
-        assert_eq!(state.items[1].amount, 1);
-        assert_eq!(state.items[1].price, dec!(1.2));
-        assert!(!state.show_sale_confirmation);
+        input(&mut cf, "3800235265659");
+        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(cf.items.len(), 2);
+        assert_eq!(cf.items[0].barcode, "3800235265659");
+        assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
+        assert_eq!(cf.items[0].amount, 2);
+        assert_eq!(cf.items[0].price, dec!(0.9));
+        assert_eq!(cf.items[1].barcode, "3800235266700");
+        assert_eq!(cf.items[1].description, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.items[1].amount, 1);
+        assert_eq!(cf.items[1].price, dec!(1.2));
+        assert!(!cf.show_sale_confirmation);
 
-        let _ = state.update(Message::Pay);
-        assert_eq!(state.user, None);
-        assert_eq!(state.items.len(), 0);
-        assert!(state.show_sale_confirmation);
+        let _ = cf.update(Message::Pay);
+        assert_eq!(cf.user, None);
+        assert_eq!(cf.items.len(), 0);
+        assert!(cf.show_sale_confirmation);
     }
 }
