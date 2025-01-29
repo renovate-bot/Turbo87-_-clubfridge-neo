@@ -22,6 +22,16 @@ pub struct RunningClubFridge {
 }
 
 impl RunningClubFridge {
+    pub fn new(pool: SqlitePool) -> Self {
+        Self {
+            pool,
+            user: None,
+            input: String::new(),
+            items: Vec::new(),
+            show_sale_confirmation: false,
+        }
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)))
     }

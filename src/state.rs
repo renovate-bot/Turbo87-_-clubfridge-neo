@@ -75,14 +75,7 @@ impl ClubFridge {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         if let Message::StartupComplete(pool) = message {
-            *self = Self::Running(RunningClubFridge {
-                pool,
-                user: None,
-                input: String::new(),
-                items: Vec::new(),
-                show_sale_confirmation: false,
-            });
-
+            *self = Self::Running(RunningClubFridge::new(pool));
             return Task::none();
         }
 
