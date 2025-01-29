@@ -64,10 +64,11 @@ impl RunningClubFridge {
         let title = self
             .user
             .as_ref()
-            .and_then(|user_id| {
-                self.users
-                    .get(user_id)
-                    .map(|user_name| text(format!("{user_name} ({user_id})")))
+            .map(|user| {
+                text(format!(
+                    "{} {} – Produkte scannen bitte",
+                    user.firstname, user.lastname
+                ))
             })
             .unwrap_or(text("Bitte RFID Chip"));
 

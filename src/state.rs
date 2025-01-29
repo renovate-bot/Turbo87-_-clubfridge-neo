@@ -5,7 +5,6 @@ use iced::futures::FutureExt;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::SqlitePool;
-use std::collections::HashMap;
 use tracing::error;
 
 #[derive(Debug, clap::Parser)]
@@ -76,7 +75,6 @@ impl ClubFridge {
                     .into_iter()
                     .map(|article| (article.barcode.clone(), article))
                     .collect(),
-                users: HashMap::from([("0005635570".to_string(), "Tobias Bieniek".to_string())]),
                 user: None,
                 input: String::new(),
                 items: Vec::new(),
@@ -103,7 +101,7 @@ pub enum Message {
     StartupComplete(SqlitePool),
 
     KeyPress(Key),
-    SetUser { keycode: String },
+    SetUser(database::Member),
     AddToSale { barcode: String },
     Pay,
     Cancel,

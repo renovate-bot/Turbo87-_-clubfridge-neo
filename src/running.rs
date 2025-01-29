@@ -17,9 +17,8 @@ pub struct RunningClubFridge {
     pub pool: SqlitePool,
 
     pub articles: HashMap<String, Article>,
-    pub users: HashMap<String, String>,
 
-    pub user: Option<String>,
+    pub user: Option<database::Member>,
     pub input: String,
     pub items: Vec<Item>,
     pub show_sale_confirmation: bool,
@@ -119,7 +118,21 @@ impl RunningClubFridge {
                     Task::done(Message::AddToSale { barcode })
                 } else {
                     let keycode = self.input.clone();
-                    Task::done(Message::SetUser { keycode })
+                    Task::future(database::Member::find_by_keycode(
+                        self.pool.clone(),
+                        keycode.clone(),
+                    ))
+                    .then(move |result| match result {
+                        Ok(Some(member)) => Task::done(Message::SetUser(member)),
+                        Ok(None) => {
+                            warn!("No user found for keycode: {keycode}");
+                            Task::none()
+                        }
+                        Err(err) => {
+                            error!("Failed to find user: {err}");
+                            Task::none()
+                        }
+                    })
                 };
 
                 self.input.clear();
@@ -133,8 +146,12 @@ impl RunningClubFridge {
                     let barcode = self.articles.values().next().unwrap().barcode.clone();
                     Task::done(Message::AddToSale { barcode })
                 } else {
-                    let keycode = self.users.keys().next().unwrap().clone();
-                    Task::done(Message::SetUser { keycode })
+                    Task::done(Message::SetUser(database::Member {
+                        id: "11011".to_string(),
+                        firstname: "Tobias".to_string(),
+                        lastname: "Bieniek".to_string(),
+                        nickname: "Turbo".to_string(),
+                    }))
                 };
 
                 self.show_sale_confirmation = false;
@@ -164,13 +181,9 @@ impl RunningClubFridge {
                     }
                 }
             }
-            Message::SetUser { keycode } => {
-                if self.users.contains_key(&keycode) {
-                    info!("Setting user: {keycode}");
-                    self.user = Some(keycode);
-                } else {
-                    warn!("Unknown user: {keycode}");
-                }
+            Message::SetUser(member) => {
+                info!("Setting user: {member:?}");
+                self.user = Some(member);
             }
             Message::Pay => {
                 info!("Processing sale");
@@ -182,7 +195,12 @@ impl RunningClubFridge {
                     .map(|item| database::NewSale {
                         id: Ulid::new(),
                         date,
-                        member_id: self.user.clone().unwrap_or_default(),
+                        member_id: self
+                            .user
+                            .as_ref()
+                            .map(|user| &user.id)
+                            .cloned()
+                            .unwrap_or_default(),
                         article_id: item.barcode,
                         amount: item.amount as u32,
                     })
@@ -251,12 +269,18 @@ mod tests {
         };
 
         input(&mut cf, "0005635570");
-        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(
+            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
+            "0005635570"
+        );
         assert_eq!(cf.items.len(), 0);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
-        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(
+            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
+            "0005635570"
+        );
         assert_eq!(cf.items.len(), 1);
         assert_eq!(cf.items[0].barcode, "3800235265659");
         assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
@@ -265,7 +289,10 @@ mod tests {
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235266700");
-        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(
+            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
+            "0005635570"
+        );
         assert_eq!(cf.items.len(), 2);
         assert_eq!(cf.items[0].barcode, "3800235265659");
         assert_eq!(cf.items[0].description, "Gloriette Cola Mix");
@@ -278,7 +305,10 @@ mod tests {
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
-        assert_eq!(cf.user.as_deref().unwrap_or_default(), "0005635570");
+        assert_eq!(
+            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
+            "0005635570"
+        );
         assert_eq!(cf.items.len(), 2);
         assert_eq!(cf.items[0].barcode, "3800235265659");
         assert_eq!(cf.items[0].description, "Gloriette Cola Mix");

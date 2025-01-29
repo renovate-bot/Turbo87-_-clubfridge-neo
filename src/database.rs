@@ -21,6 +21,30 @@ pub async fn run_migrations(pool: SqlitePool) -> Result<(), MigrateError> {
     sqlx::migrate!().run(&pool).await
 }
 
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct Member {
+    pub id: String,
+    pub firstname: String,
+    pub lastname: String,
+    #[allow(dead_code)]
+    pub nickname: String,
+}
+
+impl Member {
+    pub async fn find_by_keycode(pool: SqlitePool, keycode: String) -> sqlx::Result<Option<Self>> {
+        sqlx::query_as(
+            r#"
+            SELECT members.id, firstname, lastname, nickname
+            FROM members, json_each(keycodes)
+            WHERE json_each.value = $1
+            "#,
+        )
+        .bind(keycode)
+        .fetch_optional(&pool)
+        .await
+    }
+}
+
 #[derive(Debug)]
 pub struct NewSale {
     pub id: Ulid,
