@@ -97,7 +97,7 @@ pub enum Message {
 
     KeyPress(Key),
     SetUser(database::Member),
-    AddToSale(database::Article),
+    AddSale(database::Article),
     Pay,
     Cancel,
     HideSaleConfirmation,

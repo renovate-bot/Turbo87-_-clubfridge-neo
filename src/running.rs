@@ -17,7 +17,7 @@ pub struct RunningClubFridge {
 
     pub user: Option<database::Member>,
     pub input: String,
-    pub items: Vec<Item>,
+    pub sales: Vec<Sale>,
     pub show_sale_confirmation: bool,
 }
 
@@ -27,7 +27,7 @@ impl RunningClubFridge {
             pool,
             user: None,
             input: String::new(),
-            items: Vec::new(),
+            sales: Vec::new(),
             show_sale_confirmation: false,
         }
     }
@@ -38,12 +38,12 @@ impl RunningClubFridge {
 }
 
 #[derive(Debug, Clone)]
-pub struct Item {
+pub struct Sale {
     pub amount: u16,
     pub article: database::Article,
 }
 
-impl Item {
+impl Sale {
     pub fn total(&self) -> Decimal {
         Decimal::from(self.amount) * self.article.current_price().unwrap_or_default()
     }
@@ -66,7 +66,7 @@ impl RunningClubFridge {
                         barcode.clone(),
                     ))
                     .then(move |result| match result {
-                        Ok(Some(article)) => Task::done(Message::AddToSale(article)),
+                        Ok(Some(article)) => Task::done(Message::AddSale(article)),
                         Ok(None) => {
                             warn!("No article found for barcode: {barcode}");
                             Task::none()
@@ -104,7 +104,7 @@ impl RunningClubFridge {
             Message::KeyPress(Key::Named(Named::Control)) => {
                 let task = if self.user.is_some() {
                     let ulid = Ulid::new().to_string();
-                    Task::done(Message::AddToSale(database::Article {
+                    Task::done(Message::AddSale(database::Article {
                         id: ulid.clone(),
                         designation: ulid,
                         prices: vec![{
@@ -128,17 +128,17 @@ impl RunningClubFridge {
 
                 return task;
             }
-            Message::AddToSale(article) => {
+            Message::AddSale(article) => {
                 info!("Adding article to sale: {article:?}");
                 if self.user.is_some() && article.current_price().is_some() {
-                    self.items
+                    self.sales
                         .iter_mut()
                         .find(|item| item.article.id == article.id)
                         .map(|item| {
                             item.amount += 1;
                         })
                         .unwrap_or_else(|| {
-                            self.items.push(Item { amount: 1, article });
+                            self.sales.push(Sale { amount: 1, article });
                         });
                 }
             }
@@ -151,7 +151,7 @@ impl RunningClubFridge {
                 let pool = self.pool.clone();
                 let date = jiff::Zoned::now().date();
 
-                let sales = mem::take(&mut self.items)
+                let sales = mem::take(&mut self.sales)
                     .into_iter()
                     .map(|item| database::NewSale {
                         id: Ulid::new(),
@@ -178,7 +178,7 @@ impl RunningClubFridge {
             Message::SalesSaved => {
                 info!("Sales saved");
                 self.user = None;
-                self.items.clear();
+                self.sales.clear();
                 self.show_sale_confirmation = true;
                 return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
                     Message::HideSaleConfirmation
@@ -190,7 +190,7 @@ impl RunningClubFridge {
             Message::Cancel => {
                 info!("Cancelling sale");
                 self.user = None;
-                self.items.clear();
+                self.sales.clear();
             }
             Message::HideSaleConfirmation => {
                 debug!("Hiding sale confirmation popup");
@@ -237,7 +237,7 @@ mod tests {
             cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
             "0005635570"
         );
-        assert_eq!(cf.items.len(), 0);
+        assert_eq!(cf.sales.len(), 0);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
@@ -245,9 +245,9 @@ mod tests {
             cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
             "0005635570"
         );
-        assert_eq!(cf.items.len(), 1);
-        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
-        assert_eq!(cf.items[0].amount, 1);
+        assert_eq!(cf.sales.len(), 1);
+        assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
+        assert_eq!(cf.sales[0].amount, 1);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235266700");
@@ -255,11 +255,11 @@ mod tests {
             cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
             "0005635570"
         );
-        assert_eq!(cf.items.len(), 2);
-        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
-        assert_eq!(cf.items[0].amount, 1);
-        assert_eq!(cf.items[1].article.designation, "Erdinger Weissbier 0.5L");
-        assert_eq!(cf.items[1].amount, 1);
+        assert_eq!(cf.sales.len(), 2);
+        assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
+        assert_eq!(cf.sales[0].amount, 1);
+        assert_eq!(cf.sales[1].article.designation, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.sales[1].amount, 1);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
@@ -267,16 +267,16 @@ mod tests {
             cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
             "0005635570"
         );
-        assert_eq!(cf.items.len(), 2);
-        assert_eq!(cf.items[0].article.designation, "Gloriette Cola Mix");
-        assert_eq!(cf.items[0].amount, 2);
-        assert_eq!(cf.items[1].article.designation, "Erdinger Weissbier 0.5L");
-        assert_eq!(cf.items[1].amount, 1);
+        assert_eq!(cf.sales.len(), 2);
+        assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
+        assert_eq!(cf.sales[0].amount, 2);
+        assert_eq!(cf.sales[1].article.designation, "Erdinger Weissbier 0.5L");
+        assert_eq!(cf.sales[1].amount, 1);
         assert!(!cf.show_sale_confirmation);
 
         let _ = cf.update(Message::Pay);
         assert_eq!(cf.user, None);
-        assert_eq!(cf.items.len(), 0);
+        assert_eq!(cf.sales.len(), 0);
         assert!(cf.show_sale_confirmation);
     }
 }

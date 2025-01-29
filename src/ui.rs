@@ -1,4 +1,4 @@
-use crate::running::{Item, RunningClubFridge};
+use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
 use crate::state::{ClubFridge, Message};
 use iced::widget::{button, column, container, row, scrollable, stack, text};
@@ -67,11 +67,11 @@ impl RunningClubFridge {
             })
             .unwrap_or(text("Bitte RFID Chip"));
 
-        let sum = self.items.iter().map(|item| item.total()).sum::<Decimal>();
+        let sum = self.sales.iter().map(|item| item.total()).sum::<Decimal>();
 
         let content = column![
             title.size(36),
-            scrollable(items(&self.items))
+            scrollable(items(&self.sales))
                 .height(Fill)
                 .width(Fill)
                 .anchor_bottom(),
@@ -129,7 +129,7 @@ impl RunningClubFridge {
     }
 }
 
-fn items(items: &[Item]) -> Element<Message> {
+fn items(items: &[Sale]) -> Element<Message> {
     row![
         column(
             items
