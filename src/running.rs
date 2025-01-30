@@ -105,7 +105,8 @@ impl RunningClubFridge {
                     let ulid = Ulid::new().to_string();
                     Task::done(Message::AddSale(database::Article {
                         id: ulid.clone(),
-                        designation: ulid,
+                        designation: ulid.clone(),
+                        barcode: ulid.clone(),
                         prices: vec![{
                             database::Price {
                                 valid_from: jiff::civil::Date::constant(2000, 1, 1),
@@ -203,7 +204,7 @@ impl RunningClubFridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::ClubFridge;
+    use crate::state::{ClubFridge, State};
     use sqlx::sqlite::SqliteConnectOptions;
 
     fn input(cf: &mut RunningClubFridge, input: &str) {
@@ -227,7 +228,7 @@ mod tests {
         let _ = cf.update(Message::DatabaseMigrated);
         let _ = cf.update(Message::StartupComplete(pool, credentials));
 
-        let ClubFridge::Running(mut cf) = cf else {
+        let State::Running(mut cf) = cf.state else {
             panic!("Expected ClubFridge::Running");
         };
 

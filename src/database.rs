@@ -18,7 +18,6 @@ pub async fn run_migrations(pool: SqlitePool) -> Result<(), MigrateError> {
     sqlx::migrate!().run(&pool).await
 }
 
-#[expect(dead_code)]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Credentials {
     pub club_id: u32,
@@ -79,22 +78,52 @@ impl Member {
 pub struct Article {
     pub id: String,
     pub designation: String,
+    pub barcode: String,
     #[sqlx(json)]
     pub prices: Vec<Price>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+impl TryFrom<vereinsflieger::Article> for Article {
+    type Error = anyhow::Error;
+
+    fn try_from(article: vereinsflieger::Article) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: article.article_id.clone(),
+            designation: article.designation,
+            barcode: article.article_id,
+            prices: article
+                .prices
+                .into_iter()
+                .map(Price::try_from)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Price {
     pub valid_from: jiff::civil::Date,
     pub valid_to: jiff::civil::Date,
     pub unit_price: Decimal,
 }
 
+impl TryFrom<vereinsflieger::Price> for Price {
+    type Error = anyhow::Error;
+
+    fn try_from(price: vereinsflieger::Price) -> Result<Self, Self::Error> {
+        Ok(Self {
+            valid_from: price.valid_from.parse()?,
+            valid_to: price.valid_to.parse()?,
+            unit_price: price.unit_price.parse()?,
+        })
+    }
+}
+
 impl Article {
     pub async fn find_by_barcode(pool: SqlitePool, barcode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
-            SELECT id, designation, prices
+            SELECT id, designation, barcode, prices
             FROM articles
             WHERE barcode = $1
             "#,
@@ -102,6 +131,44 @@ impl Article {
         .bind(barcode)
         .fetch_optional(&pool)
         .await
+    }
+
+    pub async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        sqlx::query("DELETE FROM articles")
+            .execute(connection)
+            .await
+            .map(|_| ())
+    }
+
+    async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        let prices = serde_json::to_string(&self.prices)
+            .map_err(Into::into)
+            .map_err(sqlx::Error::Encode)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO articles (id, designation, barcode, prices)
+            VALUES ($1, $2, $3, $4)
+            "#,
+        )
+        .bind(&self.id)
+        .bind(&self.designation)
+        .bind(&self.barcode)
+        .bind(prices)
+        .execute(connection)
+        .await
+        .map(|_| ())
+    }
+
+    pub async fn save_all(pool: SqlitePool, articles: Vec<Self>) -> sqlx::Result<()> {
+        let mut transaction = pool.begin().await?;
+
+        Self::delete_all(&mut transaction).await?;
+        for article in articles {
+            article.insert(&mut transaction).await?;
+        }
+
+        transaction.commit().await
     }
 
     pub fn current_price(&self) -> Option<Decimal> {

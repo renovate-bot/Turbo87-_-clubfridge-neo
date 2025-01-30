@@ -6,7 +6,7 @@ use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
-use tracing::error;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -17,17 +17,20 @@ pub struct Options {
     /// Run in fullscreen
     #[arg(long, default_value = "clubfridge.db?mode=rwc")]
     database: SqliteConnectOptions,
+
+    /// Run in offline mode (no network requests)
+    #[arg(long)]
+    offline: bool,
 }
 
-pub enum ClubFridge {
+pub struct ClubFridge {
+    offline: bool,
+    pub state: State,
+}
+
+pub enum State {
     Starting(StartingClubFridge),
     Running(RunningClubFridge),
-}
-
-impl Default for ClubFridge {
-    fn default() -> Self {
-        Self::Starting(Default::default())
-    }
 }
 
 impl ClubFridge {
@@ -63,26 +66,65 @@ impl ClubFridge {
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
-        (Self::default(), startup_task)
+        let offline = options.offline;
+        let state = State::Starting(Default::default());
+        (Self { offline, state }, startup_task)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        match self {
-            Self::Starting(cf) => cf.subscription(),
-            Self::Running(cf) => cf.subscription(),
+        match &self.state {
+            State::Starting(cf) => cf.subscription(),
+            State::Running(cf) => cf.subscription(),
         }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         if let Message::StartupComplete(pool, credentials) = message {
             let vereinsflieger = crate::vereinsflieger::Client::new(credentials);
-            *self = Self::Running(RunningClubFridge::new(pool, vereinsflieger));
-            return Task::none();
+
+            self.state =
+                State::Running(RunningClubFridge::new(pool.clone(), vereinsflieger.clone()));
+
+            if self.offline {
+                info!("Running in offline mode, skipping Vereinsflieger sync");
+                return Task::none();
+            }
+
+            return Task::future(async move {
+                info!("Loading articles from Vereinsflieger API…");
+                let articles = vereinsflieger.list_articles().await?;
+                info!(
+                    "Received {} articles from Vereinsflieger API",
+                    articles.len()
+                );
+
+                let articles = articles
+                    .into_iter()
+                    .filter_map(|article| {
+                        database::Article::try_from(article)
+                            .inspect_err(|err| warn!("Found invalid article: {err}"))
+                            .ok()
+                    })
+                    .collect::<Vec<_>>();
+
+                info!("Saving {} articles to database…", articles.len());
+                database::Article::save_all(pool, articles).await?;
+
+                Ok::<_, anyhow::Error>(())
+            })
+            .then(|result| {
+                match result {
+                    Ok(_) => info!("Articles successfully saved to database"),
+                    Err(err) => error!("Failed to load articles: {err}"),
+                }
+
+                Task::none()
+            });
         }
 
-        match self {
-            Self::Starting(cf) => cf.update(message),
-            Self::Running(cf) => cf.update(message),
+        match &mut self.state {
+            State::Starting(cf) => cf.update(message),
+            State::Running(cf) => cf.update(message),
         }
     }
 }
@@ -115,6 +157,6 @@ mod tests {
     #[tokio::test]
     async fn test_initial_state() {
         let (cf, _) = ClubFridge::new(Default::default());
-        assert!(matches!(cf, ClubFridge::Starting(_)));
+        assert!(matches!(cf.state, State::Starting(_)));
     }
 }

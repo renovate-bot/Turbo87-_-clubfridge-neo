@@ -1,6 +1,6 @@
 use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
-use crate::state::{ClubFridge, Message};
+use crate::state::{ClubFridge, Message, State};
 use iced::widget::{button, column, container, row, scrollable, stack, text};
 use iced::{color, Center, Element, Fill, Right, Theme};
 use rust_decimal::Decimal;
@@ -21,9 +21,9 @@ impl ClubFridge {
     }
 
     pub fn view(&self) -> Element<Message> {
-        match self {
-            ClubFridge::Starting(cf) => cf.view(),
-            ClubFridge::Running(cf) => cf.view(),
+        match &self.state {
+            State::Starting(cf) => cf.view(),
+            State::Running(cf) => cf.view(),
         }
     }
 }
