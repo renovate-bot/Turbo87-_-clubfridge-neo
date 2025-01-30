@@ -4,7 +4,6 @@ use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{Subscription, Task};
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
 use std::mem;
 use std::sync::Arc;
@@ -259,6 +258,8 @@ impl RunningClubFridge {
             }
             #[cfg(debug_assertions)]
             Message::KeyPress(Key::Named(Named::Control)) => {
+                use rust_decimal_macros::dec;
+
                 let task = if self.user.is_some() {
                     let ulid = Ulid::new().to_string();
                     Task::done(Message::AddSale(database::Article {
