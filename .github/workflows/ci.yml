@@ -47,6 +47,10 @@ jobs:
       - run: cargo install cross --vers ${CROSS_VERSION}
       - run: cross build --release --target=${TARGET_ARCH}
 
+      - run: cp target/${TARGET_ARCH}/release/clubfridge-neo clubfridge-neo
+      - run: tar czf clubfridge-neo-${TARGET_ARCH}.tar.gz clubfridge-neo
+
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
-          path: target/${{ env.TARGET_ARCH }}/release/clubfridge-neo
+          name: clubfridge-neo-${{ env.TARGET_ARCH }}.tar.gz
+          path: clubfridge-neo-${{ env.TARGET_ARCH }}.tar.gz
