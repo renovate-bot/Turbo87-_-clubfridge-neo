@@ -32,6 +32,9 @@ jobs:
 
   cross-build:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
     env:
       # see https://woodruffw.github.io/zizmor/audits/#template-injection
       REF_NAME: ${{ github.ref_name }}
