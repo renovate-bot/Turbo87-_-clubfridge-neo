@@ -1,7 +1,7 @@
 use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
 use crate::state::{ClubFridge, Message, State};
-use iced::widget::{button, column, container, row, scrollable, stack, text};
+use iced::widget::{button, column, container, row, scrollable, stack, text, Row};
 use iced::{color, Center, Element, Fill, Right, Theme};
 use rust_decimal::Decimal;
 use std::sync::Arc;
@@ -71,7 +71,18 @@ impl RunningClubFridge {
             })
             .unwrap_or(text("Bitte RFID Chip"));
 
+        let update_available = self
+            .self_updated
+            .as_ref()
+            .map(|_| text("Update verfügbar. Bitte Gerät neustarten!").size(24));
+
         let sum = self.sales.iter().map(|item| item.total()).sum::<Decimal>();
+        let sum = text(format!("Summe: {sum:.2}€"))
+            .size(24)
+            .width(Fill)
+            .align_x(Right);
+
+        let status_row = Row::with_capacity(2).push_maybe(update_available).push(sum);
 
         let content = column![
             title.size(36),
@@ -79,10 +90,7 @@ impl RunningClubFridge {
                 .height(Fill)
                 .width(Fill)
                 .anchor_bottom(),
-            text(format!("Summe: {sum:.2}€"))
-                .size(24)
-                .align_x(Right)
-                .width(Fill),
+            status_row,
             row![
                 button(
                     text("Abbruch")
