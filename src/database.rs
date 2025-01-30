@@ -39,16 +39,6 @@ impl Credentials {
         .fetch_optional(&pool)
         .await
     }
-
-    #[cfg(test)]
-    pub fn dummy() -> Self {
-        Self {
-            club_id: 1,
-            app_key: "123456789".to_string(),
-            username: "foo".to_string(),
-            password: "bar".into(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
