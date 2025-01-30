@@ -201,7 +201,7 @@ impl Article {
             r#"
             SELECT id, designation, barcode, prices
             FROM articles
-            WHERE barcode = $1
+            WHERE lower(barcode) = lower($1)
             "#,
         )
         .bind(barcode)
