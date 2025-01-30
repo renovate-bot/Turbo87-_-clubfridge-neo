@@ -370,7 +370,7 @@ impl RunningClubFridge {
 mod tests {
     use super::*;
     use crate::state::{ClubFridge, State};
-    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     fn input(cf: &mut RunningClubFridge, input: &str) {
         for c in input.chars() {
@@ -385,8 +385,9 @@ mod tests {
     async fn test_happy_path() {
         let (mut cf, _) = ClubFridge::new(Default::default());
 
+        let pool_options = SqlitePoolOptions::default().max_connections(1);
         let db_options = SqliteConnectOptions::default().in_memory(true);
-        let pool = database::connect(db_options).await.unwrap();
+        let pool = pool_options.connect_with(db_options).await.unwrap();
         let _ = cf.update(Message::DatabaseConnected(pool.clone()));
         let _ = cf.update(Message::DatabaseMigrated);
         let _ = cf.update(Message::StartupComplete(pool, None));
