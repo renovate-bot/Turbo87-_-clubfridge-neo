@@ -52,16 +52,15 @@ impl ClubFridge {
             })
             .unwrap_or(Task::none());
 
-        let connect_task =
-            Task::future(
-                database::connect(options.database).map(|result| match result {
-                    Ok(pool) => Message::DatabaseConnected(pool),
-                    Err(err) => {
-                        error!("Failed to connect to database: {err}");
-                        Message::DatabaseConnectionFailed
-                    }
-                }),
-            );
+        let connect_task = Task::future(async move {
+            match database::connect(options.database).await {
+                Ok(pool) => Message::DatabaseConnected(pool),
+                Err(err) => {
+                    error!("Failed to connect to database: {err}");
+                    Message::DatabaseConnectionFailed
+                }
+            }
+        });
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
