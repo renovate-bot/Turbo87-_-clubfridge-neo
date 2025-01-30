@@ -1,11 +1,12 @@
 use crate::database;
 use crate::running::RunningClubFridge;
 use crate::starting::StartingClubFridge;
+use auto_launch::AutoLaunchBuilder;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -20,6 +21,10 @@ pub struct Options {
     /// Run in offline mode (no network requests)
     #[arg(long)]
     offline: bool,
+
+    /// Automatically launch the application on system startup
+    #[arg(long)]
+    auto_launch: bool,
 }
 
 pub struct ClubFridge {
@@ -33,6 +38,31 @@ pub enum State {
 
 impl ClubFridge {
     pub fn run(options: Options) -> iced::Result {
+        match std::env::current_exe() {
+            Err(err) => warn!("Failed to get current executable path: {err}"),
+            Ok(app_path) => {
+                let auto = AutoLaunchBuilder::new()
+                    .set_app_name("clubfridge-neo")
+                    .set_app_path(&app_path.to_string_lossy())
+                    .set_args(&std::env::args().collect::<Vec<_>>())
+                    .set_use_launch_agent(true)
+                    .build()
+                    .unwrap();
+
+                if options.auto_launch {
+                    match auto.enable() {
+                        Ok(_) => info!("Auto launch enabled"),
+                        Err(err) => warn!("Failed to enable auto launch: {err}"),
+                    }
+                } else {
+                    match auto.disable() {
+                        Ok(_) => info!("Auto launch disabled"),
+                        Err(err) => warn!("Failed to disable auto launch: {err}"),
+                    }
+                }
+            }
+        }
+
         application("ClubFridge neo", Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
