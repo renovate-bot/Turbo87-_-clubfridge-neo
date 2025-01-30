@@ -1,16 +1,10 @@
 use rust_decimal::Decimal;
 use secrecy::SecretString;
 use sqlx::error::BoxDynError;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteValueRef};
-use sqlx::{Database, Pool, Sqlite, SqliteConnection, SqlitePool};
+use sqlx::sqlite::SqliteValueRef;
+use sqlx::{Database, Sqlite, SqliteConnection, SqlitePool};
 use tracing::info;
 use ulid::Ulid;
-
-#[tracing::instrument]
-pub async fn connect(options: SqliteConnectOptions) -> sqlx::Result<Pool<Sqlite>> {
-    info!("Connecting to database…");
-    SqlitePoolOptions::new().connect_with(options).await
-}
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Credentials {

@@ -4,7 +4,7 @@ use crate::starting::StartingClubFridge;
 use iced::futures::FutureExt;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
-use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use tracing::{error, info};
 
@@ -53,7 +53,9 @@ impl ClubFridge {
             .unwrap_or(Task::none());
 
         let connect_task = Task::future(async move {
-            match database::connect(options.database).await {
+            info!("Connecting to database…");
+            let pool_options = SqlitePoolOptions::default();
+            match pool_options.connect_with(options.database).await {
                 Ok(pool) => Message::DatabaseConnected(pool),
                 Err(err) => {
                     error!("Failed to connect to database: {err}");
