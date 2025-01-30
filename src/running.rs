@@ -1,6 +1,5 @@
 use crate::database;
 use crate::state::Message;
-use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{Subscription, Task};
@@ -8,6 +7,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::SqlitePool;
 use std::mem;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use ulid::Ulid;
@@ -16,9 +16,15 @@ use ulid::Ulid;
 /// the Vereinsflieger API.
 const SYNC_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 
+/// The interval at which the app should upload new sales to
+/// the Vereinsflieger API.
+const SALES_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
     pub vereinsflieger: Option<crate::vereinsflieger::Client>,
+    /// Mutex to ensure that only one upload task runs at a time.
+    pub upload_mutex: Arc<tokio::sync::Mutex<()>>,
 
     pub user: Option<database::Member>,
     pub input: String,
@@ -31,6 +37,7 @@ impl RunningClubFridge {
         Self {
             pool,
             vereinsflieger,
+            upload_mutex: Default::default(),
             user: None,
             input: String::new(),
             sales: Vec::new(),
@@ -45,6 +52,7 @@ impl RunningClubFridge {
 
         if self.vereinsflieger.is_some() {
             subscriptions.push(iced::time::every(SYNC_INTERVAL).map(|_| Message::LoadFromVF));
+            subscriptions.push(iced::time::every(SALES_INTERVAL).map(|_| Message::UploadSalesToVF));
         }
 
         Subscription::batch(subscriptions)
@@ -68,7 +76,6 @@ impl RunningClubFridge {
         match message {
             Message::LoadFromVF => {
                 let Some(vereinsflieger) = &self.vereinsflieger else {
-                    info!("Running in offline mode, skipping Vereinsflieger sync");
                     return Task::none();
                 };
 
@@ -137,6 +144,74 @@ impl RunningClubFridge {
                 });
 
                 return Task::batch([load_articles_task, load_members_task]);
+            }
+            Message::UploadSalesToVF => {
+                let Some(vereinsflieger) = &self.vereinsflieger else {
+                    return Task::none();
+                };
+
+                let vereinsflieger = vereinsflieger.clone();
+                let pool = self.pool.clone();
+                let upload_mutex = self.upload_mutex.clone();
+
+                return Task::future(async move {
+                    let _guard = upload_mutex.lock().await;
+
+                    info!("Loading sales from database…");
+                    let sales = database::Sale::load_all(pool.clone()).await?;
+                    if sales.is_empty() {
+                        info!("No sales to upload");
+                        return Ok(());
+                    }
+
+                    info!("Uploading {} sales to Vereinsflieger API…", sales.len());
+                    for (i, sale) in sales.into_iter().enumerate() {
+                        let sale_id = sale.id;
+                        debug!(%sale_id, "Uploading sale #{}…", i + 1);
+
+                        async fn save_sale(
+                            vereinsflieger: &crate::vereinsflieger::Client,
+                            sale: database::Sale,
+                        ) -> Result<(), anyhow::Error> {
+                            let sale = vereinsflieger::NewSale {
+                                booking_date: &sale.date.to_string(),
+                                article_id: &sale.article_id,
+                                amount: sale.amount as f64,
+                                member_id: Some(sale.member_id.parse()?),
+                                callsign: None,
+                                sales_tax: None,
+                                total_price: None,
+                                counter: None,
+                                comment: None,
+                                cost_type: None,
+                                caid2: None,
+                                spid: None,
+                            };
+
+                            Ok(vereinsflieger.add_sale(&sale).await?)
+                        }
+
+                        if let Err(error) = save_sale(&vereinsflieger, sale).await {
+                            warn!(%sale_id, "Failed to upload sale: {error}");
+                        } else {
+                            debug!(%sale_id, "Deleting sale from database…");
+                            match database::Sale::delete_by_id(&pool, sale_id).await {
+                                Ok(()) => debug!(%sale_id, "Sale successfully deleted"),
+                                Err(err) => warn!(%sale_id, "Failed to delete sale: {err}"),
+                            }
+                        }
+                    }
+
+                    Ok::<_, anyhow::Error>(())
+                })
+                .then(|result| {
+                    match result {
+                        Ok(_) => info!("Sales successfully uploaded"),
+                        Err(err) => error!("Failed to upload sales: {err}"),
+                    }
+
+                    Task::none()
+                });
             }
             Message::KeyPress(Key::Character(c)) => {
                 debug!("Key pressed: {c:?}");
@@ -235,7 +310,7 @@ impl RunningClubFridge {
 
                 let sales = mem::take(&mut self.sales)
                     .into_iter()
-                    .map(|item| database::NewSale {
+                    .map(|item| database::Sale {
                         id: Ulid::new(),
                         date,
                         member_id: self
@@ -249,13 +324,18 @@ impl RunningClubFridge {
                     })
                     .collect();
 
-                return Task::future(database::add_sales(pool, sales).map(|result| match result {
-                    Ok(()) => Message::SalesSaved,
-                    Err(err) => {
-                        error!("Failed to save sales: {err}");
-                        Message::SavingSalesFailed
+                return Task::future(database::Sale::insert_all(pool, sales)).then(|result| {
+                    match result {
+                        Ok(()) => Task::batch([
+                            Task::done(Message::SalesSaved),
+                            Task::done(Message::UploadSalesToVF),
+                        ]),
+                        Err(err) => {
+                            error!("Failed to save sales: {err}");
+                            Task::done(Message::SavingSalesFailed)
+                        }
                     }
-                }));
+                });
             }
             Message::SalesSaved => {
                 info!("Sales saved");

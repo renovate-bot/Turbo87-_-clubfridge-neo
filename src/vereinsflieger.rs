@@ -88,4 +88,12 @@ impl Client {
         })
         .await
     }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn add_sale(&self, sale: &vereinsflieger::NewSale<'_>) -> vereinsflieger::Result<()> {
+        self.request(|client, access_token| async move {
+            vereinsflieger::add_sale(&client, &access_token, sale).await
+        })
+        .await
+    }
 }

@@ -6,7 +6,7 @@ use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
-use tracing::error;
+use tracing::{error, info};
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -80,10 +80,20 @@ impl ClubFridge {
         if let Message::StartupComplete(pool, credentials) = message {
             let vereinsflieger = credentials.map(crate::vereinsflieger::Client::new);
 
-            self.state =
-                State::Running(RunningClubFridge::new(pool.clone(), vereinsflieger.clone()));
+            let task = match &vereinsflieger {
+                Some(_) => Task::batch([
+                    Task::done(Message::LoadFromVF),
+                    Task::done(Message::UploadSalesToVF),
+                ]),
+                None => {
+                    info!("Running in offline mode, skipping Vereinsflieger sync");
+                    Task::none()
+                }
+            };
 
-            return Task::done(Message::LoadFromVF);
+            self.state = State::Running(RunningClubFridge::new(pool, vereinsflieger));
+
+            return task;
         }
 
         match &mut self.state {
@@ -105,6 +115,7 @@ pub enum Message {
     StartupComplete(SqlitePool, Option<database::Credentials>),
 
     LoadFromVF,
+    UploadSalesToVF,
     KeyPress(Key),
     SetUser(database::Member),
     AddSale(database::Article),

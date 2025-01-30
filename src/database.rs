@@ -1,8 +1,9 @@
 use rust_decimal::Decimal;
 use secrecy::SecretString;
+use sqlx::error::BoxDynError;
 use sqlx::migrate::MigrateError;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite, SqliteConnection, SqlitePool};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteValueRef};
+use sqlx::{Database, Pool, Sqlite, SqliteConnection, SqlitePool};
 use tracing::info;
 use ulid::Ulid;
 
@@ -258,16 +259,29 @@ impl Article {
     }
 }
 
-#[derive(Debug)]
-pub struct NewSale {
+#[derive(Debug, sqlx::FromRow)]
+pub struct Sale {
+    #[sqlx(try_from = "StringHelper")]
     pub id: Ulid,
+    #[sqlx(try_from = "StringHelper")]
     pub date: jiff::civil::Date,
     pub member_id: String,
     pub article_id: String,
     pub amount: u32,
 }
 
-impl NewSale {
+impl Sale {
+    pub async fn load_all(pool: SqlitePool) -> sqlx::Result<Vec<Self>> {
+        sqlx::query_as(
+            r#"
+            SELECT id, date, member_id, article_id, amount
+            FROM sales
+            "#,
+        )
+        .fetch_all(&pool)
+        .await
+    }
+
     async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         sqlx::query(
             r#"
@@ -284,21 +298,59 @@ impl NewSale {
         .await
         .map(|_| ())
     }
-}
 
-#[tracing::instrument(skip(pool))]
-pub async fn add_sales(pool: SqlitePool, sales: Vec<NewSale>) -> sqlx::Result<()> {
-    info!("Adding sales to database…");
+    #[tracing::instrument(skip(pool))]
+    pub async fn insert_all(pool: SqlitePool, sales: Vec<Sale>) -> sqlx::Result<()> {
+        info!("Adding sales to database…");
 
-    let mut transaction = pool.begin().await?;
+        let mut transaction = pool.begin().await?;
 
-    for sale in sales {
-        sale.insert(&mut transaction).await?;
+        for sale in sales {
+            sale.insert(&mut transaction).await?;
+        }
+
+        transaction.commit().await?;
+
+        Ok(())
     }
 
-    transaction.commit().await?;
+    pub async fn delete_by_id(pool: &SqlitePool, id: Ulid) -> sqlx::Result<()> {
+        sqlx::query("DELETE FROM sales WHERE id = $1")
+            .bind(id.to_string())
+            .execute(pool)
+            .await
+            .map(|_| ())
+    }
+}
 
-    Ok(())
+struct StringHelper(String);
+
+impl sqlx::Type<Sqlite> for StringHelper {
+    fn type_info() -> <Sqlite as Database>::TypeInfo {
+        <String as sqlx::Type<Sqlite>>::type_info()
+    }
+}
+
+impl sqlx::Decode<'_, Sqlite> for StringHelper {
+    fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
+        Ok(Self(<String as sqlx::Decode<Sqlite>>::decode(value)?))
+    }
+}
+
+impl TryFrom<StringHelper> for jiff::civil::Date {
+    type Error = <jiff::civil::Date as std::str::FromStr>::Err;
+
+    fn try_from(value: StringHelper) -> Result<jiff::civil::Date, Self::Error> {
+        value.0.parse()
+    }
+}
+
+impl TryFrom<StringHelper> for Ulid {
+    type Error = <Ulid as std::str::FromStr>::Err;
+
+    fn try_from(value: StringHelper) -> Result<Ulid, Self::Error> {
+        value.0.parse()
+    }
 }
 
 #[cfg(test)]
