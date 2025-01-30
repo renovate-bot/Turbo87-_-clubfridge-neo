@@ -5,13 +5,22 @@ use iced::{Subscription, Task};
 use sqlx::SqlitePool;
 use tracing::{error, info};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct StartingClubFridge {
+    pub offline: bool,
     pub pool: Option<SqlitePool>,
     pub migrations_finished: bool,
 }
 
 impl StartingClubFridge {
+    pub fn new(offline: bool) -> Self {
+        Self {
+            offline,
+            pool: None,
+            migrations_finished: false,
+        }
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::none()
     }
@@ -39,6 +48,10 @@ impl StartingClubFridge {
                 self.migrations_finished = true;
 
                 if let Some(pool) = &self.pool {
+                    if self.offline {
+                        return Task::done(Message::StartupComplete(pool.clone(), None));
+                    }
+
                     let future =
                         database::Credentials::find_first(pool.clone()).map(
                             |result| match result {
@@ -57,7 +70,7 @@ impl StartingClubFridge {
                 info!("Found credentials in database: {credentials:?}");
 
                 if let Some(pool) = self.pool.take() {
-                    return Task::done(Message::StartupComplete(pool, credentials));
+                    return Task::done(Message::StartupComplete(pool, Some(credentials)));
                 }
             }
             Message::CredentialLookupFailed => {

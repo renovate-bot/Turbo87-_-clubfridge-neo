@@ -24,7 +24,6 @@ pub struct Options {
 }
 
 pub struct ClubFridge {
-    offline: bool,
     pub state: State,
 }
 
@@ -66,9 +65,8 @@ impl ClubFridge {
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
-        let offline = options.offline;
-        let state = State::Starting(Default::default());
-        (Self { offline, state }, startup_task)
+        let state = State::Starting(StartingClubFridge::new(options.offline));
+        (Self { state }, startup_task)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -80,15 +78,15 @@ impl ClubFridge {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         if let Message::StartupComplete(pool, credentials) = message {
-            let vereinsflieger = crate::vereinsflieger::Client::new(credentials);
+            let vereinsflieger = credentials.map(crate::vereinsflieger::Client::new);
 
             self.state =
                 State::Running(RunningClubFridge::new(pool.clone(), vereinsflieger.clone()));
 
-            if self.offline {
+            let Some(vereinsflieger) = vereinsflieger else {
                 info!("Running in offline mode, skipping Vereinsflieger sync");
                 return Task::none();
-            }
+            };
 
             let vf_clone = vereinsflieger.clone();
             let pool_clone = pool.clone();
@@ -171,7 +169,7 @@ pub enum Message {
     CredentialsFound(database::Credentials),
     CredentialLookupFailed,
 
-    StartupComplete(SqlitePool, database::Credentials),
+    StartupComplete(SqlitePool, Option<database::Credentials>),
 
     KeyPress(Key),
     SetUser(database::Member),

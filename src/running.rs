@@ -15,7 +15,7 @@ use ulid::Ulid;
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
     #[expect(dead_code)]
-    pub vereinsflieger: crate::vereinsflieger::Client,
+    pub vereinsflieger: Option<crate::vereinsflieger::Client>,
 
     pub user: Option<database::Member>,
     pub input: String,
@@ -24,7 +24,7 @@ pub struct RunningClubFridge {
 }
 
 impl RunningClubFridge {
-    pub fn new(pool: SqlitePool, vereinsflieger: crate::vereinsflieger::Client) -> Self {
+    pub fn new(pool: SqlitePool, vereinsflieger: Option<crate::vereinsflieger::Client>) -> Self {
         Self {
             pool,
             vereinsflieger,
