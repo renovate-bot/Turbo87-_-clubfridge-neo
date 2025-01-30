@@ -1,7 +1,6 @@
 use rust_decimal::Decimal;
 use secrecy::SecretString;
 use sqlx::error::BoxDynError;
-use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteValueRef};
 use sqlx::{Database, Pool, Sqlite, SqliteConnection, SqlitePool};
 use tracing::info;
@@ -11,12 +10,6 @@ use ulid::Ulid;
 pub async fn connect(options: SqliteConnectOptions) -> sqlx::Result<Pool<Sqlite>> {
     info!("Connecting to database…");
     SqlitePoolOptions::new().connect_with(options).await
-}
-
-#[tracing::instrument(skip(pool))]
-pub async fn run_migrations(pool: SqlitePool) -> Result<(), MigrateError> {
-    info!("Running database migrations…");
-    sqlx::migrate!().run(&pool).await
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

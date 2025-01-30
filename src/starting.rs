@@ -29,16 +29,18 @@ impl StartingClubFridge {
         match message {
             Message::DatabaseConnected(pool) => {
                 info!("Connected to database");
-                let future = database::run_migrations(pool.clone()).map(|result| match result {
-                    Ok(()) => Message::DatabaseMigrated,
-                    Err(err) => {
-                        error!("Failed to run database migrations: {err}");
-                        Message::DatabaseMigrationFailed
+                self.pool = Some(pool.clone());
+
+                return Task::future(async move {
+                    info!("Running database migrations…");
+                    match sqlx::migrate!().run(&pool).await {
+                        Ok(()) => Message::DatabaseMigrated,
+                        Err(err) => {
+                            error!("Failed to run database migrations: {err}");
+                            Message::DatabaseMigrationFailed
+                        }
                     }
                 });
-
-                self.pool = Some(pool);
-                return Task::future(future);
             }
             Message::DatabaseConnectionFailed => {
                 error!("Failed to connect to database");
