@@ -370,6 +370,7 @@ impl RunningClubFridge {
 mod tests {
     use super::*;
     use crate::state::{ClubFridge, State};
+    use claims::{assert_none, assert_ok, assert_some};
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
     fn input(cf: &mut RunningClubFridge, input: &str) {
@@ -387,8 +388,8 @@ mod tests {
 
         let pool_options = SqlitePoolOptions::default().max_connections(1);
         let db_options = SqliteConnectOptions::default().in_memory(true);
-        let pool = pool_options.connect_with(db_options).await.unwrap();
-        database::run_migrations(pool.clone()).await.unwrap();
+        let pool = assert_ok!(pool_options.connect_with(db_options).await);
+        assert_ok!(database::run_migrations(pool.clone()).await);
 
         let _ = cf.update(Message::DatabaseConnected(pool.clone()));
         let _ = cf.update(Message::DatabaseMigrated);
@@ -399,28 +400,19 @@ mod tests {
         };
 
         input(&mut cf, "0005635570");
-        assert_eq!(
-            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
-            "0005635570"
-        );
+        assert_eq!(assert_some!(&cf.user).id, "0005635570");
         assert_eq!(cf.sales.len(), 0);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
-        assert_eq!(
-            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
-            "0005635570"
-        );
+        assert_eq!(assert_some!(&cf.user).id, "0005635570");
         assert_eq!(cf.sales.len(), 1);
         assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.sales[0].amount, 1);
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235266700");
-        assert_eq!(
-            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
-            "0005635570"
-        );
+        assert_eq!(assert_some!(&cf.user).id, "0005635570");
         assert_eq!(cf.sales.len(), 2);
         assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.sales[0].amount, 1);
@@ -429,10 +421,7 @@ mod tests {
         assert!(!cf.show_sale_confirmation);
 
         input(&mut cf, "3800235265659");
-        assert_eq!(
-            cf.user.as_ref().map(|u| &u.id).cloned().unwrap_or_default(),
-            "0005635570"
-        );
+        assert_eq!(assert_some!(&cf.user).id, "0005635570");
         assert_eq!(cf.sales.len(), 2);
         assert_eq!(cf.sales[0].article.designation, "Gloriette Cola Mix");
         assert_eq!(cf.sales[0].amount, 2);
@@ -441,7 +430,7 @@ mod tests {
         assert!(!cf.show_sale_confirmation);
 
         let _ = cf.update(Message::Pay);
-        assert_eq!(cf.user, None);
+        assert_none!(cf.user);
         assert_eq!(cf.sales.len(), 0);
         assert!(cf.show_sale_confirmation);
     }

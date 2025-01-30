@@ -24,4 +24,5 @@ ulid = "=1.1.4"
 vereinsflieger = "=0.6.0"
 
 [dev-dependencies]
+claims = "=0.8.0"
 tokio = { version = "=1.43.0", features = ["macros"] }
