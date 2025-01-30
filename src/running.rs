@@ -12,9 +12,12 @@ use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use ulid::Ulid;
 
+/// The interval at which the app should load articles and users from
+/// the Vereinsflieger API.
+const SYNC_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
+
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
-    #[expect(dead_code)]
     pub vereinsflieger: Option<crate::vereinsflieger::Client>,
 
     pub user: Option<database::Member>,
@@ -36,7 +39,15 @@ impl RunningClubFridge {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key)))
+        let mut subscriptions = vec![iced::keyboard::on_key_press(|key, _modifiers| {
+            Some(Message::KeyPress(key))
+        })];
+
+        if self.vereinsflieger.is_some() {
+            subscriptions.push(iced::time::every(SYNC_INTERVAL).map(|_| Message::LoadFromVF));
+        }
+
+        Subscription::batch(subscriptions)
     }
 }
 
@@ -55,6 +66,78 @@ impl Sale {
 impl RunningClubFridge {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::LoadFromVF => {
+                let Some(vereinsflieger) = &self.vereinsflieger else {
+                    info!("Running in offline mode, skipping Vereinsflieger sync");
+                    return Task::none();
+                };
+
+                let vf_clone = vereinsflieger.clone();
+                let pool_clone = self.pool.clone();
+                let load_articles_task = Task::future(async move {
+                    info!("Loading articles from Vereinsflieger API…");
+                    let articles = vf_clone.list_articles().await?;
+                    info!(
+                        "Received {} articles from Vereinsflieger API",
+                        articles.len()
+                    );
+
+                    let articles = articles
+                        .into_iter()
+                        .filter_map(|article| {
+                            database::Article::try_from(article)
+                                .inspect_err(|err| warn!("Found invalid article: {err}"))
+                                .ok()
+                        })
+                        .collect::<Vec<_>>();
+
+                    info!("Saving {} articles to database…", articles.len());
+                    database::Article::save_all(pool_clone, articles).await?;
+
+                    Ok::<_, anyhow::Error>(())
+                })
+                .then(|result| {
+                    match result {
+                        Ok(_) => info!("Articles successfully saved to database"),
+                        Err(err) => error!("Failed to load articles: {err}"),
+                    }
+
+                    Task::none()
+                });
+
+                let vf_clone = vereinsflieger.clone();
+                let pool_clone = self.pool.clone();
+                let load_members_task = Task::future(async move {
+                    info!("Loading users from Vereinsflieger API…");
+                    let users = vf_clone.list_users().await?;
+                    info!("Received {} users from Vereinsflieger API", users.len());
+
+                    let users = users
+                        .into_iter()
+                        .filter_map(|user| {
+                            database::Member::try_from(user)
+                                .inspect_err(|err| warn!("Found invalid user: {err}"))
+                                .ok()
+                        })
+                        .filter(|user| !user.keycodes.is_empty())
+                        .collect::<Vec<_>>();
+
+                    info!("Saving {} users with keycodes to database…", users.len());
+                    database::Member::save_all(pool_clone, users).await?;
+
+                    Ok::<_, anyhow::Error>(())
+                })
+                .then(|result| {
+                    match result {
+                        Ok(_) => info!("Users successfully saved to database"),
+                        Err(err) => error!("Failed to load users: {err}"),
+                    }
+
+                    Task::none()
+                });
+
+                return Task::batch([load_articles_task, load_members_task]);
+            }
             Message::KeyPress(Key::Character(c)) => {
                 debug!("Key pressed: {c:?}");
                 self.input.push_str(c.as_str());
@@ -221,13 +304,11 @@ mod tests {
     async fn test_happy_path() {
         let (mut cf, _) = ClubFridge::new(Default::default());
 
-        let credentials = database::Credentials::dummy();
-
         let db_options = SqliteConnectOptions::default().in_memory(true);
         let pool = database::connect(db_options).await.unwrap();
         let _ = cf.update(Message::DatabaseConnected(pool.clone()));
         let _ = cf.update(Message::DatabaseMigrated);
-        let _ = cf.update(Message::StartupComplete(pool, credentials));
+        let _ = cf.update(Message::StartupComplete(pool, None));
 
         let State::Running(mut cf) = cf.state else {
             panic!("Expected ClubFridge::Running");

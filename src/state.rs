@@ -6,7 +6,7 @@ use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
-use tracing::{error, info, warn};
+use tracing::error;
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -83,74 +83,7 @@ impl ClubFridge {
             self.state =
                 State::Running(RunningClubFridge::new(pool.clone(), vereinsflieger.clone()));
 
-            let Some(vereinsflieger) = vereinsflieger else {
-                info!("Running in offline mode, skipping Vereinsflieger sync");
-                return Task::none();
-            };
-
-            let vf_clone = vereinsflieger.clone();
-            let pool_clone = pool.clone();
-            let load_articles_task = Task::future(async move {
-                info!("Loading articles from Vereinsflieger API…");
-                let articles = vf_clone.list_articles().await?;
-                info!(
-                    "Received {} articles from Vereinsflieger API",
-                    articles.len()
-                );
-
-                let articles = articles
-                    .into_iter()
-                    .filter_map(|article| {
-                        database::Article::try_from(article)
-                            .inspect_err(|err| warn!("Found invalid article: {err}"))
-                            .ok()
-                    })
-                    .collect::<Vec<_>>();
-
-                info!("Saving {} articles to database…", articles.len());
-                database::Article::save_all(pool_clone, articles).await?;
-
-                Ok::<_, anyhow::Error>(())
-            })
-            .then(|result| {
-                match result {
-                    Ok(_) => info!("Articles successfully saved to database"),
-                    Err(err) => error!("Failed to load articles: {err}"),
-                }
-
-                Task::none()
-            });
-
-            let load_members_task = Task::future(async move {
-                info!("Loading users from Vereinsflieger API…");
-                let users = vereinsflieger.list_users().await?;
-                info!("Received {} users from Vereinsflieger API", users.len());
-
-                let users = users
-                    .into_iter()
-                    .filter_map(|user| {
-                        database::Member::try_from(user)
-                            .inspect_err(|err| warn!("Found invalid user: {err}"))
-                            .ok()
-                    })
-                    .filter(|user| !user.keycodes.is_empty())
-                    .collect::<Vec<_>>();
-
-                info!("Saving {} users with keycodes to database…", users.len());
-                database::Member::save_all(pool, users).await?;
-
-                Ok::<_, anyhow::Error>(())
-            })
-            .then(|result| {
-                match result {
-                    Ok(_) => info!("Users successfully saved to database"),
-                    Err(err) => error!("Failed to load users: {err}"),
-                }
-
-                Task::none()
-            });
-
-            return Task::batch([load_articles_task, load_members_task]);
+            return Task::done(Message::LoadFromVF);
         }
 
         match &mut self.state {
@@ -171,6 +104,7 @@ pub enum Message {
 
     StartupComplete(SqlitePool, Option<database::Credentials>),
 
+    LoadFromVF,
     KeyPress(Key),
     SetUser(database::Member),
     AddSale(database::Article),
