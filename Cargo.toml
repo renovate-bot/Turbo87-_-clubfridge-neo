@@ -27,3 +27,9 @@ vereinsflieger = "=0.6.0"
 [dev-dependencies]
 claims = "=0.8.0"
 tokio = { version = "=1.43.0", features = ["macros"] }
+
+[package.metadata.release]
+sign-commit = true
+sign-tag = true
+pre-release-commit-message = "Release v{{version}}"
+tag-message = ""
