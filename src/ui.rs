@@ -60,10 +60,14 @@ impl RunningClubFridge {
             .user
             .as_ref()
             .map(|user| {
-                text(format!(
-                    "{} {} – Produkte scannen bitte",
-                    user.firstname, user.lastname
-                ))
+                if user.nickname.is_empty() {
+                    text(format!(
+                        "{} {} – Produkte scannen bitte",
+                        user.firstname, user.lastname
+                    ))
+                } else {
+                    text(format!("{} – Produkte scannen bitte", user.nickname))
+                }
             })
             .unwrap_or(text("Bitte RFID Chip"));
 
