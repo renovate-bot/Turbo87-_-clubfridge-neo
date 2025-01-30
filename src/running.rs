@@ -388,6 +388,8 @@ mod tests {
         let pool_options = SqlitePoolOptions::default().max_connections(1);
         let db_options = SqliteConnectOptions::default().in_memory(true);
         let pool = pool_options.connect_with(db_options).await.unwrap();
+        database::run_migrations(pool.clone()).await.unwrap();
+
         let _ = cf.update(Message::DatabaseConnected(pool.clone()));
         let _ = cf.update(Message::DatabaseMigrated);
         let _ = cf.update(Message::StartupComplete(pool, None));
