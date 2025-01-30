@@ -1,7 +1,6 @@
 use crate::database;
 use crate::running::RunningClubFridge;
 use crate::starting::StartingClubFridge;
-use iced::futures::FutureExt;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
