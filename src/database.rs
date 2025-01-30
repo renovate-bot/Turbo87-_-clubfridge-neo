@@ -57,13 +57,33 @@ pub struct Member {
     pub lastname: String,
     #[allow(dead_code)]
     pub nickname: String,
+    #[sqlx(json)]
+    pub keycodes: Vec<String>,
+}
+
+impl TryFrom<vereinsflieger::User> for Member {
+    type Error = anyhow::Error;
+
+    fn try_from(article: vereinsflieger::User) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: article.member_id,
+            firstname: article.first_name,
+            lastname: article.last_name,
+            nickname: article.nickname,
+            keycodes: article
+                .keymanagement
+                .into_iter()
+                .filter_map(Self::parse_keycode)
+                .collect(),
+        })
+    }
 }
 
 impl Member {
     pub async fn find_by_keycode(pool: SqlitePool, keycode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
-            SELECT members.id, firstname, lastname, nickname
+            SELECT members.id, firstname, lastname, nickname, keycodes
             FROM members, json_each(keycodes)
             WHERE json_each.value = $1
             "#,
@@ -71,6 +91,61 @@ impl Member {
         .bind(keycode)
         .fetch_optional(&pool)
         .await
+    }
+
+    pub async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        sqlx::query("DELETE FROM members")
+            .execute(connection)
+            .await
+            .map(|_| ())
+    }
+
+    async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        let keycodes = serde_json::to_string(&self.keycodes)
+            .map_err(Into::into)
+            .map_err(sqlx::Error::Encode)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO members (id, firstname, lastname, nickname, keycodes)
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+        )
+        .bind(&self.id)
+        .bind(&self.firstname)
+        .bind(&self.lastname)
+        .bind(&self.nickname)
+        .bind(keycodes)
+        .execute(connection)
+        .await
+        .map(|_| ())
+    }
+
+    pub async fn save_all(pool: SqlitePool, members: Vec<Self>) -> sqlx::Result<()> {
+        let mut transaction = pool.begin().await?;
+
+        Self::delete_all(&mut transaction).await?;
+        for member in members {
+            member.insert(&mut transaction).await?;
+        }
+
+        transaction.commit().await
+    }
+
+    /// Parse a Vereinsflieger keycode into a normalized format.
+    ///
+    /// This function accepts both the 10-digit numeric format and the 7-digit
+    /// hexadecimal format. It returns the 10-digit numeric format.
+    fn parse_keycode(key: vereinsflieger::Key) -> Option<String> {
+        let key = key.name;
+        if key.len() == 10 && key.chars().all(|c| c.is_ascii_digit()) {
+            Some(key)
+        } else if key.len() == 7 && key.chars().all(|c| c.is_ascii_hexdigit()) {
+            let key = u32::from_str_radix(&key, 16).ok()?;
+            Some(format!("{:0>10}", key))
+        } else {
+            None
+        }
     }
 }
 
@@ -224,4 +299,26 @@ pub async fn add_sales(pool: SqlitePool, sales: Vec<NewSale>) -> sqlx::Result<()
     transaction.commit().await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_keycode_conversion() {
+        let check = |input: &str, expected| {
+            let key = vereinsflieger::Key {
+                name: input.to_string(),
+                title: "".to_string(),
+            };
+
+            assert_eq!(Member::parse_keycode(key).as_deref(), expected);
+        };
+
+        check("0005635570", Some("0005635570"));
+        check("055FDF2", Some("0005635570"));
+        check("S2017, A2711, 20€", None);
+        check("20 Euro", None);
+    }
 }

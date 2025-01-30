@@ -90,9 +90,11 @@ impl ClubFridge {
                 return Task::none();
             }
 
-            return Task::future(async move {
+            let vf_clone = vereinsflieger.clone();
+            let pool_clone = pool.clone();
+            let load_articles_task = Task::future(async move {
                 info!("Loading articles from Vereinsflieger API…");
-                let articles = vereinsflieger.list_articles().await?;
+                let articles = vf_clone.list_articles().await?;
                 info!(
                     "Received {} articles from Vereinsflieger API",
                     articles.len()
@@ -108,7 +110,7 @@ impl ClubFridge {
                     .collect::<Vec<_>>();
 
                 info!("Saving {} articles to database…", articles.len());
-                database::Article::save_all(pool, articles).await?;
+                database::Article::save_all(pool_clone, articles).await?;
 
                 Ok::<_, anyhow::Error>(())
             })
@@ -120,6 +122,37 @@ impl ClubFridge {
 
                 Task::none()
             });
+
+            let load_members_task = Task::future(async move {
+                info!("Loading users from Vereinsflieger API…");
+                let users = vereinsflieger.list_users().await?;
+                info!("Received {} users from Vereinsflieger API", users.len());
+
+                let users = users
+                    .into_iter()
+                    .filter_map(|user| {
+                        database::Member::try_from(user)
+                            .inspect_err(|err| warn!("Found invalid user: {err}"))
+                            .ok()
+                    })
+                    .filter(|user| !user.keycodes.is_empty())
+                    .collect::<Vec<_>>();
+
+                info!("Saving {} users with keycodes to database…", users.len());
+                database::Member::save_all(pool, users).await?;
+
+                Ok::<_, anyhow::Error>(())
+            })
+            .then(|result| {
+                match result {
+                    Ok(_) => info!("Users successfully saved to database"),
+                    Err(err) => error!("Failed to load users: {err}"),
+                }
+
+                Task::none()
+            });
+
+            return Task::batch([load_articles_task, load_members_task]);
         }
 
         match &mut self.state {

@@ -121,6 +121,7 @@ impl RunningClubFridge {
                         firstname: "Tobias".to_string(),
                         lastname: "Bieniek".to_string(),
                         nickname: "Turbo".to_string(),
+                        keycodes: vec!["1234567890".to_string()],
                     }))
                 };
 

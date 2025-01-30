@@ -80,4 +80,12 @@ impl Client {
         })
         .await
     }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn list_users(&self) -> vereinsflieger::Result<Vec<vereinsflieger::User>> {
+        self.request(|client, access_token| async move {
+            vereinsflieger::list_users(&client, &access_token).await
+        })
+        .await
+    }
 }
