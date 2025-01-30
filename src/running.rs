@@ -11,6 +11,9 @@ use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use ulid::Ulid;
 
+/// The interval at which the app should check for updates of itself.
+const SELF_UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
 /// The interval at which the app should load articles and users from
 /// the Vereinsflieger API.
 const SYNC_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
@@ -25,6 +28,8 @@ pub struct RunningClubFridge {
     /// Mutex to ensure that only one upload task runs at a time.
     pub upload_mutex: Arc<tokio::sync::Mutex<()>>,
 
+    /// The updated app version, if the app has been updated.
+    pub self_updated: Option<String>,
     pub user: Option<database::Member>,
     pub input: String,
     pub sales: Vec<Sale>,
@@ -37,6 +42,7 @@ impl RunningClubFridge {
             pool,
             vereinsflieger,
             upload_mutex: Default::default(),
+            self_updated: None,
             user: None,
             input: String::new(),
             sales: Vec::new(),
@@ -45,9 +51,10 @@ impl RunningClubFridge {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let mut subscriptions = vec![iced::keyboard::on_key_press(|key, _modifiers| {
-            Some(Message::KeyPress(key))
-        })];
+        let mut subscriptions = vec![
+            iced::keyboard::on_key_press(|key, _modifiers| Some(Message::KeyPress(key))),
+            iced::time::every(SELF_UPDATE_INTERVAL).map(|_| Message::SelfUpdate),
+        ];
 
         if self.vereinsflieger.is_some() {
             subscriptions.push(iced::time::every(SYNC_INTERVAL).map(|_| Message::LoadFromVF));
@@ -73,6 +80,45 @@ impl Sale {
 impl RunningClubFridge {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::SelfUpdate => {
+                info!("Checking for updates…");
+
+                let self_updated = self.self_updated.clone();
+                return Task::future(async move {
+                    let status = tokio::task::spawn_blocking(move || {
+                        let current_version =
+                            self_updated.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
+
+                        self_update::backends::github::Update::configure()
+                            .repo_owner("Turbo87")
+                            .repo_name("clubfridge-neo")
+                            .bin_name("clubfridge-neo")
+                            .current_version(current_version)
+                            .show_output(false)
+                            .no_confirm(true)
+                            .build()?
+                            .update()
+                    })
+                    .await??;
+
+                    Ok::<_, anyhow::Error>(status)
+                })
+                .then(|result| match result {
+                    Ok(self_update::Status::Updated(version)) => {
+                        info!("App has been updated to version {version}");
+                        Task::done(Message::SelfUpdated(version))
+                    }
+                    Ok(self_update::Status::UpToDate(_)) => {
+                        info!("App is already up-to-date");
+                        Task::none()
+                    }
+                    Err(err) => {
+                        warn!("Failed to check for updates: {err}");
+                        Task::none()
+                    }
+                });
+            }
+            Message::SelfUpdated(version) => self.self_updated = Some(version),
             Message::LoadFromVF => {
                 let Some(vereinsflieger) = &self.vereinsflieger else {
                     return Task::none();

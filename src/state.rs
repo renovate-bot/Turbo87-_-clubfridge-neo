@@ -94,7 +94,7 @@ impl ClubFridge {
 
             self.state = State::Running(RunningClubFridge::new(pool, vereinsflieger));
 
-            return task;
+            return Task::batch([Task::done(Message::SelfUpdate), task]);
         }
 
         match &mut self.state {
@@ -115,6 +115,8 @@ pub enum Message {
 
     StartupComplete(SqlitePool, Option<database::Credentials>),
 
+    SelfUpdate,
+    SelfUpdated(String),
     LoadFromVF,
     UploadSalesToVF,
     KeyPress(Key),
