@@ -13,6 +13,10 @@ pub struct Options {
     #[arg(long)]
     fullscreen: bool,
 
+    /// Whether the window should have a border, a title bar, etc. or not
+    #[arg(long)]
+    no_decorations: bool,
+
     /// Run in fullscreen
     #[arg(long, default_value = "clubfridge.db?mode=rwc")]
     database: SqliteConnectOptions,
@@ -36,7 +40,8 @@ impl ClubFridge {
         application("ClubFridge neo", Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
-            .resizable(true)
+            .resizable(!options.no_decorations)
+            .decorations(!options.no_decorations)
             .window_size((800., 480.))
             .run_with(|| Self::new(options))
     }
