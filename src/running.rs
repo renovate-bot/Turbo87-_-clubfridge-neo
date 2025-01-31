@@ -313,16 +313,27 @@ impl RunningClubFridge {
                 use rust_decimal_macros::dec;
 
                 let task = if self.user.is_some() {
-                    let ulid = Ulid::new().to_string();
+                    let ulid = Ulid::new();
+
+                    let timestamp = ulid.timestamp_ms();
+
+                    let designations = [
+                        "Testartikel 1",
+                        "Testartikel 2 asd nflkjdbnslf kjalsdk fj lkdjsnlfkjnaldsknf lknlksdanfl kndslkf nlkaflkn a",
+                        "Test",
+                    ];
+                    let n = timestamp % designations.len() as u64;
+
+                    let ulid = ulid.to_string();
                     Task::done(Message::AddSale(database::Article {
-                        id: ulid.clone(),
-                        designation: ulid.clone(),
+                        id: designations[n as usize].to_string(),
+                        designation: designations[n as usize].to_string(),
                         barcode: ulid.clone(),
                         prices: vec![{
                             database::Price {
                                 valid_from: jiff::civil::Date::constant(2000, 1, 1),
                                 valid_to: jiff::civil::Date::constant(2999, 12, 31),
-                                unit_price: dec!(0.9),
+                                unit_price: Decimal::from(timestamp % 1000) / dec!(100),
                             }
                         }],
                     }))
