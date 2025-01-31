@@ -1,8 +1,7 @@
 use rust_decimal::Decimal;
 use secrecy::SecretString;
-use sqlx::error::BoxDynError;
-use sqlx::sqlite::SqliteValueRef;
-use sqlx::{Database, Sqlite, SqliteConnection, SqlitePool};
+use sqlx::types::Text;
+use sqlx::{SqliteConnection, SqlitePool};
 use tracing::info;
 use ulid::Ulid;
 
@@ -238,10 +237,8 @@ impl Article {
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct Sale {
-    #[sqlx(try_from = "StringHelper")]
-    pub id: Ulid,
-    #[sqlx(try_from = "StringHelper")]
-    pub date: jiff::civil::Date,
+    pub id: Text<Ulid>,
+    pub date: Text<jiff::civil::Date>,
     pub member_id: String,
     pub article_id: String,
     pub amount: u32,
@@ -266,8 +263,8 @@ impl Sale {
             VALUES ($1, $2, $3, $4, $5)
             "#,
         )
-        .bind(self.id.to_string())
-        .bind(self.date.to_string())
+        .bind(self.id)
+        .bind(self.date)
         .bind(&self.member_id)
         .bind(&self.article_id)
         .bind(self.amount)
@@ -297,36 +294,6 @@ impl Sale {
             .execute(pool)
             .await
             .map(|_| ())
-    }
-}
-
-struct StringHelper(String);
-
-impl sqlx::Type<Sqlite> for StringHelper {
-    fn type_info() -> <Sqlite as Database>::TypeInfo {
-        <String as sqlx::Type<Sqlite>>::type_info()
-    }
-}
-
-impl sqlx::Decode<'_, Sqlite> for StringHelper {
-    fn decode(value: SqliteValueRef<'_>) -> Result<Self, BoxDynError> {
-        Ok(Self(<String as sqlx::Decode<Sqlite>>::decode(value)?))
-    }
-}
-
-impl TryFrom<StringHelper> for jiff::civil::Date {
-    type Error = <jiff::civil::Date as std::str::FromStr>::Err;
-
-    fn try_from(value: StringHelper) -> Result<jiff::civil::Date, Self::Error> {
-        value.0.parse()
-    }
-}
-
-impl TryFrom<StringHelper> for Ulid {
-    type Error = <Ulid as std::str::FromStr>::Err;
-
-    fn try_from(value: StringHelper) -> Result<Ulid, Self::Error> {
-        value.0.parse()
     }
 }
 

@@ -4,6 +4,7 @@ use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{Subscription, Task};
 use rust_decimal::Decimal;
+use sqlx::types::Text;
 use sqlx::SqlitePool;
 use std::mem;
 use std::sync::Arc;
@@ -217,7 +218,7 @@ impl RunningClubFridge {
 
                     info!("Uploading {} sales to Vereinsflieger API…", sales.len());
                     for (i, sale) in sales.into_iter().enumerate() {
-                        let sale_id = sale.id;
+                        let sale_id = *sale.id;
                         debug!(%sale_id, "Uploading sale #{}…", i + 1);
 
                         async fn save_sale(
@@ -375,8 +376,8 @@ impl RunningClubFridge {
                 let sales = mem::take(&mut self.sales)
                     .into_iter()
                     .map(|item| database::Sale {
-                        id: Ulid::new(),
-                        date,
+                        id: Text(Ulid::new()),
+                        date: Text(date),
                         member_id: self
                             .user
                             .as_ref()
