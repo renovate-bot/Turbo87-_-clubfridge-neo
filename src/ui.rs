@@ -1,6 +1,7 @@
 use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
 use crate::state::{ClubFridge, Message, State};
+use iced::border::rounded;
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, scrollable, stack, text, Row};
 use iced::Length::Fixed;
@@ -149,7 +150,9 @@ impl RunningClubFridge {
                             .size(36)
                             .color(color!(0x000000)),
                     )
-                    .style(|_theme: &Theme| container::background(color!(0xffffff)))
+                    .style(|_theme: &Theme| {
+                        container::background(color!(0xffffff)).border(rounded(10.))
+                    })
                     .padding([15, 30]),
                 )
                 .width(Fill)
