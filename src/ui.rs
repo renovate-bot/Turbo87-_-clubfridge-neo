@@ -2,7 +2,7 @@ use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
 use crate::state::{ClubFridge, Message, State};
 use iced::widget::{button, column, container, row, scrollable, stack, text, Row};
-use iced::{color, Center, Element, Fill, Right, Theme};
+use iced::{color, Center, Element, Fill, Right, Shrink, Theme};
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ impl ClubFridge {
             iced::theme::Palette {
                 background: color!(0x000000),
                 text: color!(0xffffff),
-                primary: color!(0xffffff),
+                primary: color!(0x2E54C8),
                 success: color!(0x4BD130),
                 danger: color!(0xD5A30F),
             },
@@ -71,10 +71,30 @@ impl RunningClubFridge {
             })
             .unwrap_or(text("Bitte RFID Chip"));
 
-        let update_available = self
-            .self_updated
-            .as_ref()
-            .map(|_| text("Update verfügbar. Bitte Gerät neustarten!").size(24));
+        let update_available: Option<Element<Message>> = self.self_updated.as_ref().map(|_| {
+            if self.update_button {
+                let label = "Update verfügbar. Bitte Gerät neustarten!";
+                text(label).size(24).into()
+            } else {
+                row![
+                    text("Update verfügbar.").size(24),
+                    button(
+                        text("Jetzt updaten")
+                            .color(color!(0xffffff))
+                            .size(18)
+                            .height(Fill)
+                            .align_x(Center)
+                            .align_y(Center)
+                    )
+                    .style(button::primary)
+                    .padding([0, 10])
+                    .on_press(Message::Shutdown),
+                ]
+                .spacing(10)
+                .height(Shrink)
+                .into()
+            }
+        });
 
         let sum = self.sales.iter().map(|item| item.total()).sum::<Decimal>();
         let sum = text(format!("Summe: {sum:.2}€"))

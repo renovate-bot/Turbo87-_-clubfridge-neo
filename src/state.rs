@@ -20,10 +20,17 @@ pub struct Options {
     /// Run in offline mode (no network requests)
     #[arg(long)]
     offline: bool,
+
+    /// When an application update is available, show an "Update" button that
+    /// quits the application. Should only be used when the application is
+    /// automatically restarted by a supervisor.
+    #[arg(long)]
+    update_button: bool,
 }
 
 pub struct ClubFridge {
     pub state: State,
+    update_button: bool,
 }
 
 pub enum State {
@@ -65,8 +72,12 @@ impl ClubFridge {
 
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
-        let state = State::Starting(StartingClubFridge::new(options.offline));
-        (Self { state }, startup_task)
+        let cf = Self {
+            state: State::Starting(StartingClubFridge::new(options.offline)),
+            update_button: options.update_button,
+        };
+
+        (cf, startup_task)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -91,9 +102,18 @@ impl ClubFridge {
                 }
             };
 
-            self.state = State::Running(RunningClubFridge::new(pool, vereinsflieger));
+            self.state = State::Running(RunningClubFridge::new(
+                pool,
+                vereinsflieger,
+                self.update_button,
+            ));
 
             return Task::batch([Task::done(Message::SelfUpdate), task]);
+        }
+
+        if matches!(message, Message::Shutdown) {
+            info!("Shutting down…");
+            return window::get_latest().and_then(window::close);
         }
 
         match &mut self.state {
@@ -126,6 +146,8 @@ pub enum Message {
     HideSaleConfirmation,
     SalesSaved,
     SavingSalesFailed,
+
+    Shutdown,
 }
 
 #[cfg(test)]
