@@ -1,8 +1,10 @@
 use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
 use crate::state::{ClubFridge, Message, State};
+use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, scrollable, stack, text, Row};
-use iced::{color, Center, Element, Fill, Right, Shrink, Theme};
+use iced::Length::Fixed;
+use iced::{color, Center, Element, Fill, Length, Right, Shrink, Theme};
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
@@ -162,40 +164,37 @@ impl RunningClubFridge {
 }
 
 fn items(items: &[Sale]) -> Element<Message> {
-    row![
-        column(
-            items
-                .iter()
-                .map(|item| { text(format!("{}x", item.amount)).size(24).into() })
-        )
+    column(items.iter().map(sale_row)).spacing(10).into()
+}
+
+fn sale_row(sale: &Sale) -> Element<Message> {
+    const AMOUNT_WIDTH: Length = Fixed(40.);
+    const PRICE_WIDTH: Length = Fixed(80.);
+
+    let amount = text(format!("{}x", sale.amount))
+        .width(AMOUNT_WIDTH)
+        .size(24)
         .align_x(Right)
-        .spacing(10),
-        column(
-            items
-                .iter()
-                .map(|item| { text(&item.article.designation).size(24).into() })
-        )
-        .width(Fill)
-        .spacing(10),
-        column(items.iter().map(|item| {
-            text(format!(
-                "{:.2}€",
-                item.article.current_price().unwrap_or_default()
-            ))
-            .size(24)
-            .color(color!(0x888888))
-            .into()
-        }))
+        .wrapping(Wrapping::None);
+
+    let article_name = text(&sale.article.designation).size(24).width(Fill);
+
+    let unit_price = sale.article.current_price().unwrap_or_default();
+    let unit_price = text(format!("{:.2}€", unit_price))
+        .width(PRICE_WIDTH)
+        .size(24)
+        .color(color!(0x888888))
         .align_x(Right)
-        .spacing(10),
-        column(
-            items
-                .iter()
-                .map(|item| { text(format!("{:.2}€", item.total())).size(24).into() })
-        )
+        .wrapping(Wrapping::None);
+
+    let total_price = sale.total();
+    let total_price = text(format!("{:.2}€", total_price))
+        .width(PRICE_WIDTH)
+        .size(24)
         .align_x(Right)
-        .spacing(10),
-    ]
-    .spacing(20)
-    .into()
+        .wrapping(Wrapping::None);
+
+    row![amount, article_name, unit_price, total_price]
+        .spacing(20)
+        .into()
 }
