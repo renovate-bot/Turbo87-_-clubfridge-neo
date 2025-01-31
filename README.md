@@ -17,6 +17,29 @@ The application is intended to run on a [Raspberry Pi](https://www.raspberrypi.o
 so ARM cross-compilation compatibility is a requirement for any changes.
 
 
+Installation
+-------------------------------------------------------------------------------
+
+- Install [Raspberry Pi OS](https://www.raspberrypi.org/software/operating-systems/)
+  (64-bit) on a fresh SD card using e.g. [Raspberry Pi Imager](https://www.raspberrypi.org/software/)
+- Boot the Raspberry Pi and connect it to the internet.
+- Adjust the screen rotation, if necessary.
+- Run `sudo apt-get update` and `sudo apt-get dist-upgrade` to update the system.
+- Download the latest release of the `clubfridge-neo` application from the
+  [releases page](https://github.com/Turbo87/clubfridge-neo/releases) and extract
+  it to the `/home/pi` directory.
+- Run `sudo nano /etc/xdg/labwc/autostart` and comment out the first two lines
+  to disable autostart of the `pacmanfm` and `wf-panel-pi` applications.
+- Run `nano /home/pi/.config/labwc/autostart` and add 
+  `/usr/bin/lwrespawn /home/pi/clubfridge-neo --fullscreen --update-button`
+  to the end of the file to start the `clubfridge-neo` application when the
+  Raspberry Pi boots up.
+- Run `sudo mv /usr/share/icons/PiXflat/cursors/left_ptr /usr/share/icons/PiXflat/cursors/left_ptr.bak`
+  and `sudo mv /usr/share/icons/PiXflat/cursors/hand1 /usr/share/icons/PiXflat/cursors/hand1.bak`
+  to hide the cursor, which is not needed for this touchscreen application.
+- Reboot the Raspberry Pi to start the `clubfridge-neo` application.
+
+
 License
 -------------------------------------------------------------------------------
 
