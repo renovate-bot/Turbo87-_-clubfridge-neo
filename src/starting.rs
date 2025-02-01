@@ -50,14 +50,22 @@ impl StartingClubFridge {
                 self.migrations_finished = true;
 
                 if let Some(pool) = &self.pool {
+                    let pool = pool.clone();
+
                     if self.offline {
-                        return Task::done(Message::StartupComplete(pool.clone(), None));
+                        return Task::done(Message::StartupComplete(pool, None));
                     }
 
                     let future =
                         database::Credentials::find_first(pool.clone()).map(
                             |result| match result {
                                 Ok(Some(credentials)) => Message::CredentialsFound(credentials),
+                                Ok(None) => {
+                                    info!(
+                                        "No credentials found in database, going to setup screen"
+                                    );
+                                    Message::GotoSetup(pool)
+                                }
                                 _ => Message::CredentialLookupFailed,
                             },
                         );
@@ -72,7 +80,8 @@ impl StartingClubFridge {
                 info!("Found credentials in database: {credentials:?}");
 
                 if let Some(pool) = self.pool.take() {
-                    return Task::done(Message::StartupComplete(pool, Some(credentials)));
+                    let vereinsflieger = crate::vereinsflieger::Client::new(credentials);
+                    return Task::done(Message::StartupComplete(pool, Some(vereinsflieger)));
                 }
             }
             Message::CredentialLookupFailed => {

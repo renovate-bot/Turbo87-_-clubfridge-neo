@@ -1,5 +1,6 @@
 use crate::database;
 use crate::running::RunningClubFridge;
+use crate::setup::Setup;
 use crate::starting::StartingClubFridge;
 use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
@@ -35,6 +36,7 @@ pub struct ClubFridge {
 
 pub enum State {
     Starting(StartingClubFridge),
+    Setup(Setup),
     Running(RunningClubFridge),
 }
 
@@ -83,14 +85,18 @@ impl ClubFridge {
     pub fn subscription(&self) -> Subscription<Message> {
         match &self.state {
             State::Starting(cf) => cf.subscription(),
+            State::Setup(cf) => cf.subscription(),
             State::Running(cf) => cf.subscription(),
         }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::StartupComplete(pool, credentials) = message {
-            let vereinsflieger = credentials.map(crate::vereinsflieger::Client::new);
+        if let Message::GotoSetup(pool) = message {
+            self.state = State::Setup(Setup::new(pool));
+            return Task::none();
+        }
 
+        if let Message::StartupComplete(pool, vereinsflieger) = message {
             let task = match &vereinsflieger {
                 Some(_) => Task::batch([
                     Task::done(Message::LoadFromVF),
@@ -118,6 +124,7 @@ impl ClubFridge {
 
         match &mut self.state {
             State::Starting(cf) => cf.update(message),
+            State::Setup(cf) => cf.update(message),
             State::Running(cf) => cf.update(message),
         }
     }
@@ -130,9 +137,17 @@ pub enum Message {
     DatabaseMigrated,
     DatabaseMigrationFailed,
     CredentialsFound(database::Credentials),
+    GotoSetup(SqlitePool),
     CredentialLookupFailed,
 
-    StartupComplete(SqlitePool, Option<database::Credentials>),
+    SetClubId(String),
+    SetAppKey(String),
+    SetUsername(String),
+    SetPassword(String),
+    SubmitSetup,
+    AuthenticationFailed,
+
+    StartupComplete(SqlitePool, Option<crate::vereinsflieger::Client>),
 
     SelfUpdate,
     SelfUpdated(String),

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Client {
     client: reqwest::Client,
     access_token: Arc<Mutex<Option<String>>>,
@@ -22,7 +22,7 @@ impl Client {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn get_access_token(&self) -> vereinsflieger::Result<String> {
+    pub async fn get_access_token(&self) -> vereinsflieger::Result<String> {
         debug!("Requesting new access token…");
         let access_token = vereinsflieger::get_access_token(&self.client).await?;
 
@@ -39,6 +39,10 @@ impl Client {
 
         debug!("Authentication successful");
         Ok(access_token)
+    }
+
+    pub async fn set_access_token(&self, access_token: String) {
+        *self.access_token.lock().await = Some(access_token);
     }
 
     #[tracing::instrument(skip_all)]

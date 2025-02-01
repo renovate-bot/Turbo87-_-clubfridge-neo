@@ -1,5 +1,6 @@
 mod database;
 mod running;
+mod setup;
 mod starting;
 mod state;
 mod ui;

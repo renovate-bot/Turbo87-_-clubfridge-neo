@@ -1,5 +1,5 @@
 use rust_decimal::Decimal;
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::types::Text;
 use sqlx::{SqliteConnection, SqlitePool};
 use tracing::info;
@@ -24,6 +24,22 @@ impl Credentials {
         )
         .fetch_optional(&pool)
         .await
+    }
+
+    pub async fn insert(&self, pool: SqlitePool) -> sqlx::Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO credentials (club_id, app_key, username, password)
+            VALUES ($1, $2, $3, $4)
+            "#,
+        )
+        .bind(self.club_id)
+        .bind(&self.app_key)
+        .bind(&self.username)
+        .bind(self.password.expose_secret())
+        .execute(&pool)
+        .await
+        .map(|_| ())
     }
 }
 

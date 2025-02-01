@@ -26,6 +26,7 @@ impl ClubFridge {
     pub fn view(&self) -> Element<Message> {
         match &self.state {
             State::Starting(cf) => cf.view(),
+            State::Setup(cf) => cf.view(),
             State::Running(cf) => cf.view(),
         }
     }
