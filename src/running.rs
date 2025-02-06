@@ -27,6 +27,9 @@ const SALES_INTERVAL: Duration = Duration::from_secs(10 * 60);
 /// The time after which the sale is automatically processed.
 const INTERACTION_TIMEOUT: jiff::SignedDuration = jiff::SignedDuration::from_secs(60);
 
+/// The time after which the sale confirmation popup is automatically hidden.
+const POPUP_TIMEOUT: Duration = Duration::from_secs(3);
+
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
     pub vereinsflieger: Option<crate::vereinsflieger::Client>,
@@ -437,7 +440,7 @@ impl RunningClubFridge {
                 self.user = None;
                 self.sales.clear();
                 self.show_sale_confirmation = true;
-                return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
+                return Task::perform(tokio::time::sleep(POPUP_TIMEOUT), |_| {
                     Message::HideSaleConfirmation
                 });
             }
