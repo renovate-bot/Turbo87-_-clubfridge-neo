@@ -1,8 +1,11 @@
 use crate::database;
 use crate::state::Message;
+use iced::border::rounded;
+use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::{Subscription, Task};
+use iced::widget::{container, text};
+use iced::{color, Element, Subscription, Task, Theme};
 use rust_decimal::Decimal;
 use sqlx::types::Text;
 use sqlx::SqlitePool;
@@ -27,6 +30,9 @@ const SALES_INTERVAL: Duration = Duration::from_secs(10 * 60);
 /// The time after which the sale is automatically processed.
 const INTERACTION_TIMEOUT: jiff::SignedDuration = jiff::SignedDuration::from_secs(60);
 
+/// The time after which the sale confirmation popup is automatically hidden.
+const POPUP_TIMEOUT: Duration = Duration::from_secs(3);
+
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
     pub vereinsflieger: Option<crate::vereinsflieger::Client>,
@@ -40,7 +46,8 @@ pub struct RunningClubFridge {
     pub input: String,
     pub sales: Vec<Sale>,
     pub interaction_timeout: Option<jiff::SignedDuration>,
-    pub show_sale_confirmation: bool,
+
+    pub popup: Option<Popup>,
 }
 
 impl RunningClubFridge {
@@ -59,7 +66,7 @@ impl RunningClubFridge {
             input: String::new(),
             sales: Vec::new(),
             interaction_timeout: None,
-            show_sale_confirmation: false,
+            popup: None,
         }
     }
 
@@ -279,45 +286,27 @@ impl RunningClubFridge {
             Message::KeyPress(Key::Character(c)) => {
                 debug!("Key pressed: {c:?}");
                 self.input.push_str(c.as_str());
-                self.show_sale_confirmation = false;
+                self.hide_popup();
             }
             Message::KeyPress(Key::Named(Named::Enter)) => {
                 debug!("Key pressed: Enter");
                 let input = mem::take(&mut self.input);
                 let pool = self.pool.clone();
 
-                self.show_sale_confirmation = false;
+                self.hide_popup();
 
                 return if self.user.is_some() {
                     Task::future(async move {
-                        match database::Article::find_by_barcode(pool, &input).await {
-                            Ok(Some(article)) => Some(Message::AddSale(article)),
-                            Ok(None) => {
-                                warn!("No article found for barcode: {input}");
-                                None
-                            }
-                            Err(err) => {
-                                error!("Failed to find article: {err}");
-                                None
-                            }
-                        }
+                        let result = database::Article::find_by_barcode(pool, &input).await;
+                        let result = result.map_err(Arc::new);
+                        Message::FindArticleResult { input, result }
                     })
-                    .and_then(Task::done)
                 } else {
                     Task::future(async move {
-                        match database::Member::find_by_keycode(pool, &input).await {
-                            Ok(Some(member)) => Some(Message::SetUser(member)),
-                            Ok(None) => {
-                                warn!("No user found for keycode: {input}");
-                                None
-                            }
-                            Err(err) => {
-                                error!("Failed to find user: {err}");
-                                None
-                            }
-                        }
+                        let result = database::Member::find_by_keycode(pool, &input).await;
+                        let result = result.map_err(Arc::new);
+                        Message::FindMemberResult { input, result }
                     })
-                    .and_then(Task::done)
                 };
             }
             #[cfg(debug_assertions)]
@@ -337,51 +326,76 @@ impl RunningClubFridge {
                     let n = timestamp % designations.len() as u64;
 
                     let ulid = ulid.to_string();
-                    Task::done(Message::AddSale(database::Article {
-                        id: designations[n as usize].to_string(),
-                        designation: designations[n as usize].to_string(),
-                        barcode: ulid.clone(),
-                        prices: vec![{
-                            database::Price {
-                                valid_from: jiff::civil::Date::constant(2000, 1, 1),
-                                valid_to: jiff::civil::Date::constant(2999, 12, 31),
-                                unit_price: Decimal::from(timestamp % 1000) / dec!(100),
-                            }
-                        }],
-                    }))
+                    Task::done(Message::FindArticleResult {
+                        input: ulid.clone(),
+                        result: Ok(Some(database::Article {
+                            id: designations[n as usize].to_string(),
+                            designation: designations[n as usize].to_string(),
+                            barcode: ulid.clone(),
+                            prices: vec![{
+                                database::Price {
+                                    valid_from: jiff::civil::Date::constant(2000, 1, 1),
+                                    valid_to: jiff::civil::Date::constant(2999, 12, 31),
+                                    unit_price: Decimal::from(timestamp % 1000) / dec!(100),
+                                }
+                            }],
+                        })),
+                    })
                 } else {
-                    Task::done(Message::SetUser(database::Member {
-                        id: "11011".to_string(),
-                        firstname: "Tobias".to_string(),
-                        lastname: "Bieniek".to_string(),
-                        nickname: "Turbo".to_string(),
-                        keycodes: vec!["1234567890".to_string()],
-                    }))
+                    Task::done(Message::FindMemberResult {
+                        input: "1234567890".to_string(),
+                        result: Ok(Some(database::Member {
+                            id: "11011".to_string(),
+                            firstname: "Tobias".to_string(),
+                            lastname: "Bieniek".to_string(),
+                            nickname: "Turbo".to_string(),
+                            keycodes: vec!["1234567890".to_string()],
+                        })),
+                    })
                 };
 
-                self.show_sale_confirmation = false;
+                self.hide_popup();
 
                 return task;
             }
-            Message::AddSale(article) => {
-                info!("Adding article to sale: {article:?}");
-                if self.user.is_some() && article.current_price().is_some() {
-                    let sales = &mut self.sales;
+            Message::FindArticleResult { input, result } => match result {
+                Ok(Some(article)) => {
+                    info!("Adding article to sale: {article:?}");
+                    if self.user.is_some() && article.current_price().is_some() {
+                        let sales = &mut self.sales;
 
-                    let existing_sale = sales.iter_mut().find(|item| item.article.id == article.id);
-                    match existing_sale {
-                        Some(item) => item.amount += 1,
-                        None => sales.push(Sale { amount: 1, article }),
+                        let existing_sale =
+                            sales.iter_mut().find(|item| item.article.id == article.id);
+                        match existing_sale {
+                            Some(item) => item.amount += 1,
+                            None => sales.push(Sale { amount: 1, article }),
+                        }
+
+                        self.interaction_timeout = Some(INTERACTION_TIMEOUT);
                     }
-
+                }
+                Ok(None) => {
+                    warn!("No article found for barcode: {input}");
+                    return self.show_popup(format!("Artikel nicht gefunden ({input})"));
+                }
+                Err(err) => {
+                    error!("Failed to find article: {err}");
+                }
+            },
+            Message::FindMemberResult { input, result } => match result {
+                Ok(Some(member)) => {
+                    info!("Setting user: {member:?}");
+                    self.user = Some(member);
                     self.interaction_timeout = Some(INTERACTION_TIMEOUT);
                 }
-            }
-            Message::SetUser(member) => {
-                info!("Setting user: {member:?}");
-                self.user = Some(member);
-                self.interaction_timeout = Some(INTERACTION_TIMEOUT);
-            }
+                Ok(None) => {
+                    warn!("No user found for keycode: {input}");
+                    return self.show_popup(format!("Benutzer nicht gefunden ({input})"));
+                }
+                Err(err) => {
+                    error!("Failed to find user: {err}");
+                }
+            },
             Message::DecrementTimeout => {
                 if let Some(timeout) = &mut self.interaction_timeout {
                     *timeout = timeout.sub(jiff::SignedDuration::from_secs(1));
@@ -436,10 +450,7 @@ impl RunningClubFridge {
                 info!("Sales saved");
                 self.user = None;
                 self.sales.clear();
-                self.show_sale_confirmation = true;
-                return Task::perform(tokio::time::sleep(Duration::from_secs(3)), |_| {
-                    Message::HideSaleConfirmation
-                });
+                return self.show_popup("Danke für deinen Kauf");
             }
             Message::SavingSalesFailed => {
                 error!("Failed to save sales");
@@ -450,13 +461,55 @@ impl RunningClubFridge {
                 self.sales.clear();
                 self.interaction_timeout = None;
             }
-            Message::HideSaleConfirmation => {
-                debug!("Hiding sale confirmation popup");
-                self.show_sale_confirmation = false;
+            Message::PopupTimeoutReached => {
+                self.hide_popup();
             }
             _ => {}
         }
 
         Task::none()
+    }
+
+    fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
+        let message = message.into();
+
+        debug!("Showing popup: {message}");
+        let (popup, task) = Popup::new(message);
+
+        self.popup = Some(popup);
+        task
+    }
+
+    fn hide_popup(&mut self) {
+        if self.popup.take().is_some() {
+            debug!("Hiding popup");
+        }
+    }
+}
+
+pub struct Popup {
+    pub message: String,
+    _timeout_handle: iced::task::Handle,
+}
+
+impl Popup {
+    pub fn new(message: String) -> (Self, Task<Message>) {
+        let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
+        let timeout_task = Task::future(timeout_future.map(|_| Message::PopupTimeoutReached));
+        let (task, handle) = timeout_task.abortable();
+
+        let popup = Self {
+            message,
+            _timeout_handle: handle.abort_on_drop(),
+        };
+
+        (popup, task)
+    }
+
+    pub fn view(&self) -> Element<Message> {
+        container(text(&self.message).size(36).color(color!(0x000000)))
+            .style(|_theme: &Theme| container::background(color!(0xffffff)).border(rounded(10.)))
+            .padding([15, 30])
+            .into()
     }
 }

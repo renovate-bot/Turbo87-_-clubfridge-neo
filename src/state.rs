@@ -6,6 +6,7 @@ use iced::keyboard::Key;
 use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use tracing::{error, info};
 
 #[derive(Debug, Default, clap::Parser)]
@@ -154,12 +155,18 @@ pub enum Message {
     LoadFromVF,
     UploadSalesToVF,
     KeyPress(Key),
-    SetUser(database::Member),
-    AddSale(database::Article),
+    FindMemberResult {
+        input: String,
+        result: Result<Option<database::Member>, Arc<sqlx::Error>>,
+    },
+    FindArticleResult {
+        input: String,
+        result: Result<Option<database::Article>, Arc<sqlx::Error>>,
+    },
     Pay,
     Cancel,
     DecrementTimeout,
-    HideSaleConfirmation,
+    PopupTimeoutReached,
     SalesSaved,
     SavingSalesFailed,
 
