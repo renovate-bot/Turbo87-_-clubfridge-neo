@@ -1,9 +1,9 @@
 use crate::database;
+use crate::popup::Popup;
 use crate::state::Message;
-use iced::border::rounded;
 use iced::widget::{button, container, stack, text, text_input};
 use iced::Length::Fixed;
-use iced::{color, Center, Element, Fill, Right, Shrink, Subscription, Task, Theme};
+use iced::{color, Center, Element, Fill, Right, Shrink, Subscription, Task};
 use sqlx::SqlitePool;
 use tracing::{error, info, warn};
 
@@ -14,7 +14,7 @@ pub struct Setup {
     app_key: String,
     username: String,
     password: String,
-    authenticating: bool,
+    popup: Option<Popup>,
 }
 
 impl Setup {
@@ -25,7 +25,7 @@ impl Setup {
             app_key: String::new(),
             username: String::new(),
             password: String::new(),
-            authenticating: false,
+            popup: None,
         }
     }
 
@@ -69,7 +69,7 @@ impl Setup {
                     password,
                 };
 
-                self.authenticating = true;
+                self.popup = Some(Popup::new("Prüfe Zugangsdaten…".to_string()));
 
                 let pool = self.pool.clone();
                 return Task::future(async move {
@@ -94,7 +94,7 @@ impl Setup {
                 });
             }
             Message::AuthenticationFailed => {
-                self.authenticating = false;
+                self.popup = None;
             }
             _ => {}
         }
@@ -159,19 +159,13 @@ impl Setup {
 
         let mut stack = stack![content];
 
-        if self.authenticating {
+        if let Some(popup) = &self.popup {
             stack = stack.push(
-                container(
-                    container(text("Prüfe Zugangsdaten…").size(36).color(color!(0x000000)))
-                        .style(|_theme: &Theme| {
-                            container::background(color!(0xffffff)).border(rounded(10.))
-                        })
-                        .padding([15, 30]),
-                )
-                .width(Fill)
-                .height(Fill)
-                .align_x(Center)
-                .align_y(Center),
+                container(popup.view())
+                    .width(Fill)
+                    .height(Fill)
+                    .align_x(Center)
+                    .align_y(Center),
             );
         }
 

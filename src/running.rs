@@ -475,7 +475,7 @@ impl RunningClubFridge {
         let message = message.into();
 
         debug!("Showing popup: {message}");
-        let (popup, task) = Popup::new(message);
+        let (popup, task) = Popup::new(message).with_timeout();
 
         self.popup = Some(popup);
         task
