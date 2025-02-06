@@ -94,6 +94,12 @@ impl Setup {
                 });
             }
             Message::AuthenticationFailed => {
+                let message = "Authentifizierung fehlgeschlagen".to_string();
+                let (popup, task) = Popup::new(message).with_timeout();
+                self.popup = Some(popup);
+                return task;
+            }
+            Message::PopupTimeoutReached => {
                 self.popup = None;
             }
             _ => {}
