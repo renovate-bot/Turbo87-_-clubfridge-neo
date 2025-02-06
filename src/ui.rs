@@ -157,18 +157,14 @@ impl RunningClubFridge {
 
         let mut stack = stack![content];
 
-        if self.show_sale_confirmation {
+        if let Some(message) = &self.popup_message {
             stack = stack.push(
                 container(
-                    container(
-                        text("Danke für deinen Kauf")
-                            .size(36)
-                            .color(color!(0x000000)),
-                    )
-                    .style(|_theme: &Theme| {
-                        container::background(color!(0xffffff)).border(rounded(10.))
-                    })
-                    .padding([15, 30]),
+                    container(text(message).size(36).color(color!(0x000000)))
+                        .style(|_theme: &Theme| {
+                            container::background(color!(0xffffff)).border(rounded(10.))
+                        })
+                        .padding([15, 30]),
                 )
                 .width(Fill)
                 .height(Fill)

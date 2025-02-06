@@ -1,5 +1,6 @@
 use crate::database;
 use crate::state::Message;
+use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{Subscription, Task};
@@ -43,7 +44,9 @@ pub struct RunningClubFridge {
     pub input: String,
     pub sales: Vec<Sale>,
     pub interaction_timeout: Option<jiff::SignedDuration>,
-    pub show_sale_confirmation: bool,
+
+    pub popup_message: Option<String>,
+    pub popup_timeout_handle: Option<iced::task::Handle>,
 }
 
 impl RunningClubFridge {
@@ -62,7 +65,8 @@ impl RunningClubFridge {
             input: String::new(),
             sales: Vec::new(),
             interaction_timeout: None,
-            show_sale_confirmation: false,
+            popup_message: None,
+            popup_timeout_handle: None,
         }
     }
 
@@ -282,14 +286,14 @@ impl RunningClubFridge {
             Message::KeyPress(Key::Character(c)) => {
                 debug!("Key pressed: {c:?}");
                 self.input.push_str(c.as_str());
-                self.show_sale_confirmation = false;
+                self.hide_popup();
             }
             Message::KeyPress(Key::Named(Named::Enter)) => {
                 debug!("Key pressed: Enter");
                 let input = mem::take(&mut self.input);
                 let pool = self.pool.clone();
 
-                self.show_sale_confirmation = false;
+                self.hide_popup();
 
                 return if self.user.is_some() {
                     Task::future(async move {
@@ -362,7 +366,7 @@ impl RunningClubFridge {
                     }))
                 };
 
-                self.show_sale_confirmation = false;
+                self.hide_popup();
 
                 return task;
             }
@@ -439,10 +443,7 @@ impl RunningClubFridge {
                 info!("Sales saved");
                 self.user = None;
                 self.sales.clear();
-                self.show_sale_confirmation = true;
-                return Task::perform(tokio::time::sleep(POPUP_TIMEOUT), |_| {
-                    Message::HideSaleConfirmation
-                });
+                return self.show_popup("Danke für deinen Kauf");
             }
             Message::SavingSalesFailed => {
                 error!("Failed to save sales");
@@ -454,12 +455,34 @@ impl RunningClubFridge {
                 self.interaction_timeout = None;
             }
             Message::HideSaleConfirmation => {
-                debug!("Hiding sale confirmation popup");
-                self.show_sale_confirmation = false;
+                self.hide_popup();
             }
             _ => {}
         }
 
         Task::none()
+    }
+
+    fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
+        let message = message.into();
+
+        debug!("Showing popup: {message}");
+        self.popup_message = Some(message);
+
+        let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
+        let timeout_task = Task::future(timeout_future.map(|_| Message::HideSaleConfirmation));
+        let (task, handle) = timeout_task.abortable();
+
+        self.popup_timeout_handle = Some(handle.abort_on_drop());
+
+        task
+    }
+
+    fn hide_popup(&mut self) {
+        if self.popup_message.is_some() {
+            debug!("Hiding popup");
+            self.popup_message = None;
+            self.popup_timeout_handle = None;
+        }
     }
 }
