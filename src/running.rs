@@ -1,9 +1,11 @@
 use crate::database;
 use crate::state::Message;
+use iced::border::rounded;
 use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::{Subscription, Task};
+use iced::widget::{container, text};
+use iced::{color, Element, Subscription, Task, Theme};
 use rust_decimal::Decimal;
 use sqlx::types::Text;
 use sqlx::SqlitePool;
@@ -502,5 +504,12 @@ impl Popup {
         };
 
         (popup, task)
+    }
+
+    pub fn view(&self) -> Element<Message> {
+        container(text(&self.message).size(36).color(color!(0x000000)))
+            .style(|_theme: &Theme| container::background(color!(0xffffff)).border(rounded(10.)))
+            .padding([15, 30])
+            .into()
     }
 }
