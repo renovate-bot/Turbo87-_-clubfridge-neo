@@ -297,34 +297,16 @@ impl RunningClubFridge {
 
                 return if self.user.is_some() {
                     Task::future(async move {
-                        match database::Article::find_by_barcode(pool, &input).await {
-                            Ok(Some(article)) => Some(Message::AddSale(article)),
-                            Ok(None) => {
-                                warn!("No article found for barcode: {input}");
-                                None
-                            }
-                            Err(err) => {
-                                error!("Failed to find article: {err}");
-                                None
-                            }
-                        }
+                        let result = database::Article::find_by_barcode(pool, &input).await;
+                        let result = result.map_err(Arc::new);
+                        Message::FindArticleResult { input, result }
                     })
-                    .and_then(Task::done)
                 } else {
                     Task::future(async move {
-                        match database::Member::find_by_keycode(pool, &input).await {
-                            Ok(Some(member)) => Some(Message::SetUser(member)),
-                            Ok(None) => {
-                                warn!("No user found for keycode: {input}");
-                                None
-                            }
-                            Err(err) => {
-                                error!("Failed to find user: {err}");
-                                None
-                            }
-                        }
+                        let result = database::Member::find_by_keycode(pool, &input).await;
+                        let result = result.map_err(Arc::new);
+                        Message::FindMemberResult { input, result }
                     })
-                    .and_then(Task::done)
                 };
             }
             #[cfg(debug_assertions)]
@@ -344,51 +326,74 @@ impl RunningClubFridge {
                     let n = timestamp % designations.len() as u64;
 
                     let ulid = ulid.to_string();
-                    Task::done(Message::AddSale(database::Article {
-                        id: designations[n as usize].to_string(),
-                        designation: designations[n as usize].to_string(),
-                        barcode: ulid.clone(),
-                        prices: vec![{
-                            database::Price {
-                                valid_from: jiff::civil::Date::constant(2000, 1, 1),
-                                valid_to: jiff::civil::Date::constant(2999, 12, 31),
-                                unit_price: Decimal::from(timestamp % 1000) / dec!(100),
-                            }
-                        }],
-                    }))
+                    Task::done(Message::FindArticleResult {
+                        input: ulid.clone(),
+                        result: Ok(Some(database::Article {
+                            id: designations[n as usize].to_string(),
+                            designation: designations[n as usize].to_string(),
+                            barcode: ulid.clone(),
+                            prices: vec![{
+                                database::Price {
+                                    valid_from: jiff::civil::Date::constant(2000, 1, 1),
+                                    valid_to: jiff::civil::Date::constant(2999, 12, 31),
+                                    unit_price: Decimal::from(timestamp % 1000) / dec!(100),
+                                }
+                            }],
+                        })),
+                    })
                 } else {
-                    Task::done(Message::SetUser(database::Member {
-                        id: "11011".to_string(),
-                        firstname: "Tobias".to_string(),
-                        lastname: "Bieniek".to_string(),
-                        nickname: "Turbo".to_string(),
-                        keycodes: vec!["1234567890".to_string()],
-                    }))
+                    Task::done(Message::FindMemberResult {
+                        input: "1234567890".to_string(),
+                        result: Ok(Some(database::Member {
+                            id: "11011".to_string(),
+                            firstname: "Tobias".to_string(),
+                            lastname: "Bieniek".to_string(),
+                            nickname: "Turbo".to_string(),
+                            keycodes: vec!["1234567890".to_string()],
+                        })),
+                    })
                 };
 
                 self.hide_popup();
 
                 return task;
             }
-            Message::AddSale(article) => {
-                info!("Adding article to sale: {article:?}");
-                if self.user.is_some() && article.current_price().is_some() {
-                    let sales = &mut self.sales;
+            Message::FindArticleResult { input, result } => match result {
+                Ok(Some(article)) => {
+                    info!("Adding article to sale: {article:?}");
+                    if self.user.is_some() && article.current_price().is_some() {
+                        let sales = &mut self.sales;
 
-                    let existing_sale = sales.iter_mut().find(|item| item.article.id == article.id);
-                    match existing_sale {
-                        Some(item) => item.amount += 1,
-                        None => sales.push(Sale { amount: 1, article }),
+                        let existing_sale =
+                            sales.iter_mut().find(|item| item.article.id == article.id);
+                        match existing_sale {
+                            Some(item) => item.amount += 1,
+                            None => sales.push(Sale { amount: 1, article }),
+                        }
+
+                        self.interaction_timeout = Some(INTERACTION_TIMEOUT);
                     }
-
+                }
+                Ok(None) => {
+                    warn!("No article found for barcode: {input}");
+                }
+                Err(err) => {
+                    error!("Failed to find article: {err}");
+                }
+            },
+            Message::FindMemberResult { input, result } => match result {
+                Ok(Some(member)) => {
+                    info!("Setting user: {member:?}");
+                    self.user = Some(member);
                     self.interaction_timeout = Some(INTERACTION_TIMEOUT);
                 }
-            }
-            Message::SetUser(member) => {
-                info!("Setting user: {member:?}");
-                self.user = Some(member);
-                self.interaction_timeout = Some(INTERACTION_TIMEOUT);
-            }
+                Ok(None) => {
+                    warn!("No user found for keycode: {input}");
+                }
+                Err(err) => {
+                    error!("Failed to find user: {err}");
+                }
+            },
             Message::DecrementTimeout => {
                 if let Some(timeout) = &mut self.interaction_timeout {
                     *timeout = timeout.sub(jiff::SignedDuration::from_secs(1));
