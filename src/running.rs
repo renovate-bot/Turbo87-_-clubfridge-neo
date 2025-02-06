@@ -97,48 +97,54 @@ impl Sale {
     }
 }
 
+async fn self_update(self_updated: Option<String>) -> anyhow::Result<self_update::Status> {
+    let status = tokio::task::spawn_blocking(move || {
+        info!("Checking for updates…");
+
+        let current_version = self_updated.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
+
+        self_update::backends::github::Update::configure()
+            .repo_owner("Turbo87")
+            .repo_name("clubfridge-neo")
+            .bin_name("clubfridge-neo")
+            .current_version(current_version)
+            .show_output(false)
+            .no_confirm(true)
+            .build()?
+            .update()
+    })
+    .await??;
+
+    Ok(status)
+}
+
 impl RunningClubFridge {
+    fn self_update(&self) -> Task<Message> {
+        let self_updated = self.self_updated.clone();
+        Task::future(async move {
+            let result = self_update(self_updated).await;
+            let result = result.map_err(Arc::new);
+            Message::SelfUpdateResult(result)
+        })
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::SelfUpdate => {
-                info!("Checking for updates…");
-
-                let self_updated = self.self_updated.clone();
-                return Task::future(async move {
-                    let status = tokio::task::spawn_blocking(move || {
-                        let current_version =
-                            self_updated.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
-
-                        self_update::backends::github::Update::configure()
-                            .repo_owner("Turbo87")
-                            .repo_name("clubfridge-neo")
-                            .bin_name("clubfridge-neo")
-                            .current_version(current_version)
-                            .show_output(false)
-                            .no_confirm(true)
-                            .build()?
-                            .update()
-                    })
-                    .await??;
-
-                    Ok::<_, anyhow::Error>(status)
-                })
-                .then(|result| match result {
-                    Ok(self_update::Status::Updated(version)) => {
-                        info!("App has been updated to version {version}");
-                        Task::done(Message::SelfUpdated(version))
-                    }
-                    Ok(self_update::Status::UpToDate(_)) => {
-                        info!("App is already up-to-date");
-                        Task::none()
-                    }
-                    Err(err) => {
-                        warn!("Failed to check for updates: {err}");
-                        Task::none()
-                    }
-                });
+                return self.self_update();
             }
-            Message::SelfUpdated(version) => self.self_updated = Some(version),
+            Message::SelfUpdateResult(result) => match result {
+                Ok(self_update::Status::Updated(version)) => {
+                    info!("App has been updated to version {version}");
+                    self.self_updated = Some(version);
+                }
+                Ok(self_update::Status::UpToDate(_)) => {
+                    info!("App is already up-to-date");
+                }
+                Err(err) => {
+                    warn!("Failed to check for updates: {err}");
+                }
+            },
             Message::LoadFromVF => {
                 let Some(vereinsflieger) = &self.vereinsflieger else {
                     return Task::none();

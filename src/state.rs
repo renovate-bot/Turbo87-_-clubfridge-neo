@@ -151,7 +151,7 @@ pub enum Message {
     StartupComplete(SqlitePool, Option<crate::vereinsflieger::Client>),
 
     SelfUpdate,
-    SelfUpdated(String),
+    SelfUpdateResult(Result<self_update::Status, Arc<anyhow::Error>>),
     LoadFromVF,
     UploadSalesToVF,
     KeyPress(Key),
