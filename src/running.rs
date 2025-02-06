@@ -1,11 +1,9 @@
 use crate::database;
+use crate::popup::Popup;
 use crate::state::Message;
-use iced::border::rounded;
-use iced::futures::FutureExt;
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
-use iced::widget::{container, text};
-use iced::{color, Element, Subscription, Task, Theme};
+use iced::{Subscription, Task};
 use rust_decimal::Decimal;
 use sqlx::types::Text;
 use sqlx::SqlitePool;
@@ -29,9 +27,6 @@ const SALES_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// The time after which the sale is automatically processed.
 const INTERACTION_TIMEOUT: jiff::SignedDuration = jiff::SignedDuration::from_secs(60);
-
-/// The time after which the sale confirmation popup is automatically hidden.
-const POPUP_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
@@ -484,32 +479,5 @@ impl RunningClubFridge {
         if self.popup.take().is_some() {
             debug!("Hiding popup");
         }
-    }
-}
-
-pub struct Popup {
-    pub message: String,
-    _timeout_handle: iced::task::Handle,
-}
-
-impl Popup {
-    pub fn new(message: String) -> (Self, Task<Message>) {
-        let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
-        let timeout_task = Task::future(timeout_future.map(|_| Message::PopupTimeoutReached));
-        let (task, handle) = timeout_task.abortable();
-
-        let popup = Self {
-            message,
-            _timeout_handle: handle.abort_on_drop(),
-        };
-
-        (popup, task)
-    }
-
-    pub fn view(&self) -> Element<Message> {
-        container(text(&self.message).size(36).color(color!(0x000000)))
-            .style(|_theme: &Theme| container::background(color!(0xffffff)).border(rounded(10.)))
-            .padding([15, 30])
-            .into()
     }
 }

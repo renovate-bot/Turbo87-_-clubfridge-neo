@@ -1,4 +1,5 @@
 mod database;
+mod popup;
 mod running;
 mod setup;
 mod starting;
