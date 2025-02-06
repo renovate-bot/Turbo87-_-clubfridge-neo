@@ -459,7 +459,7 @@ impl RunningClubFridge {
                 self.sales.clear();
                 self.interaction_timeout = None;
             }
-            Message::HideSaleConfirmation => {
+            Message::PopupTimeoutReached => {
                 self.hide_popup();
             }
             _ => {}
@@ -493,7 +493,7 @@ pub struct Popup {
 impl Popup {
     pub fn new(message: String) -> (Self, Task<Message>) {
         let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
-        let timeout_task = Task::future(timeout_future.map(|_| Message::HideSaleConfirmation));
+        let timeout_task = Task::future(timeout_future.map(|_| Message::PopupTimeoutReached));
         let (task, handle) = timeout_task.abortable();
 
         let popup = Self {

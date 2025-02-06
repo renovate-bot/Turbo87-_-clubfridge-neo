@@ -166,7 +166,7 @@ pub enum Message {
     Pay,
     Cancel,
     DecrementTimeout,
-    HideSaleConfirmation,
+    PopupTimeoutReached,
     SalesSaved,
     SavingSalesFailed,
 
