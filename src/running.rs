@@ -376,6 +376,7 @@ impl RunningClubFridge {
                 }
                 Ok(None) => {
                     warn!("No article found for barcode: {input}");
+                    return self.show_popup(format!("Artikel nicht gefunden ({input})"));
                 }
                 Err(err) => {
                     error!("Failed to find article: {err}");
@@ -389,6 +390,7 @@ impl RunningClubFridge {
                 }
                 Ok(None) => {
                     warn!("No user found for keycode: {input}");
+                    return self.show_popup(format!("Benutzer nicht gefunden ({input})"));
                 }
                 Err(err) => {
                     error!("Failed to find user: {err}");
