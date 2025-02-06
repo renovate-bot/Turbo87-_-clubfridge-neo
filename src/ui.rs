@@ -157,10 +157,10 @@ impl RunningClubFridge {
 
         let mut stack = stack![content];
 
-        if let Some(message) = &self.popup_message {
+        if let Some(popup) = &self.popup {
             stack = stack.push(
                 container(
-                    container(text(message).size(36).color(color!(0x000000)))
+                    container(text(&popup.message).size(36).color(color!(0x000000)))
                         .style(|_theme: &Theme| {
                             container::background(color!(0xffffff)).border(rounded(10.))
                         })

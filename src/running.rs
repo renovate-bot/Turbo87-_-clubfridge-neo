@@ -45,8 +45,7 @@ pub struct RunningClubFridge {
     pub sales: Vec<Sale>,
     pub interaction_timeout: Option<jiff::SignedDuration>,
 
-    pub popup_message: Option<String>,
-    pub popup_timeout_handle: Option<iced::task::Handle>,
+    pub popup: Option<Popup>,
 }
 
 impl RunningClubFridge {
@@ -65,8 +64,7 @@ impl RunningClubFridge {
             input: String::new(),
             sales: Vec::new(),
             interaction_timeout: None,
-            popup_message: None,
-            popup_timeout_handle: None,
+            popup: None,
         }
     }
 
@@ -474,22 +472,35 @@ impl RunningClubFridge {
         let message = message.into();
 
         debug!("Showing popup: {message}");
-        self.popup_message = Some(message);
+        let (popup, task) = Popup::new(message);
 
-        let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
-        let timeout_task = Task::future(timeout_future.map(|_| Message::HideSaleConfirmation));
-        let (task, handle) = timeout_task.abortable();
-
-        self.popup_timeout_handle = Some(handle.abort_on_drop());
-
+        self.popup = Some(popup);
         task
     }
 
     fn hide_popup(&mut self) {
-        if self.popup_message.is_some() {
+        if self.popup.take().is_some() {
             debug!("Hiding popup");
-            self.popup_message = None;
-            self.popup_timeout_handle = None;
         }
+    }
+}
+
+pub struct Popup {
+    pub message: String,
+    _timeout_handle: iced::task::Handle,
+}
+
+impl Popup {
+    pub fn new(message: String) -> (Self, Task<Message>) {
+        let timeout_future = tokio::time::sleep(POPUP_TIMEOUT);
+        let timeout_task = Task::future(timeout_future.map(|_| Message::HideSaleConfirmation));
+        let (task, handle) = timeout_task.abortable();
+
+        let popup = Self {
+            message,
+            _timeout_handle: handle.abort_on_drop(),
+        };
+
+        (popup, task)
     }
 }
