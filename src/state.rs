@@ -165,25 +165,25 @@ impl ClubFridge {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::GotoSetup(pool) = message {
-            self.state = State::Setup(Setup::new(pool));
-            return Task::none();
-        }
+        match message {
+            Message::GotoSetup(pool) => {
+                self.state = State::Setup(Setup::new(pool));
+            }
 
-        if let Message::StartupComplete(pool, vereinsflieger) = message {
-            let (cf, task) = RunningClubFridge::new(pool, vereinsflieger);
-            self.state = State::Running(cf);
-            return task;
-        }
+            Message::StartupComplete(pool, vereinsflieger) => {
+                let (cf, task) = RunningClubFridge::new(pool, vereinsflieger);
+                self.state = State::Running(cf);
+                return task;
+            }
 
-        match &message {
             Message::SelfUpdate => {
                 return self.global_state.self_update();
             }
+
             Message::SelfUpdateResult(result) => match result {
                 Ok(self_update::Status::Updated(version)) => {
                     info!("App has been updated to version {version}");
-                    self.global_state.self_updated = Some(version.clone());
+                    self.global_state.self_updated = Some(version);
                 }
                 Ok(self_update::Status::UpToDate(_)) => {
                     info!("App is already up-to-date");
@@ -192,24 +192,26 @@ impl ClubFridge {
                     warn!("Failed to check for updates: {err}");
                 }
             },
-            _ => {}
+
+            Message::PopupTimeoutReached => {
+                self.global_state.hide_popup();
+            }
+
+            Message::Shutdown => {
+                info!("Shutting down…");
+                return window::get_latest().and_then(window::close);
+            }
+
+            message => {
+                return match &mut self.state {
+                    State::Starting(cf) => cf.update(message, &mut self.global_state),
+                    State::Setup(cf) => cf.update(message, &mut self.global_state),
+                    State::Running(cf) => cf.update(message, &mut self.global_state),
+                }
+            }
         }
 
-        if matches!(message, Message::PopupTimeoutReached) {
-            self.global_state.popup = None;
-            return Task::none();
-        }
-
-        if matches!(message, Message::Shutdown) {
-            info!("Shutting down…");
-            return window::get_latest().and_then(window::close);
-        }
-
-        match &mut self.state {
-            State::Starting(cf) => cf.update(message, &mut self.global_state),
-            State::Setup(cf) => cf.update(message, &mut self.global_state),
-            State::Running(cf) => cf.update(message, &mut self.global_state),
-        }
+        Task::none()
     }
 }
 
