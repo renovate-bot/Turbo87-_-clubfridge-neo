@@ -5,16 +5,39 @@ use sqlx::{SqliteConnection, SqlitePool};
 use tracing::{info, warn};
 use ulid::Ulid;
 
+/// The Vereinsflieger credentials used to access the API.
+///
+/// These are saved in the `credentials` database table and queried
+/// upon startup.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Credentials {
+    /// The club ID in Vereinsflieger.
+    ///
+    /// Go to "Administration" -> "Stammdaten" -> "Verein" and find the
+    /// CID value next to the "Kurzname" field.
     pub club_id: u32,
+
+    /// The "Appkey" used to access the Vereinsflieger API.
+    ///
+    /// This can be generated at "Administration" -> "Stammdaten" -> "Verein"
+    /// -> "Einstellungen" -> "REST Interface".
+    ///
+    /// Appkeys are currently limited to 500 requests per day.
     pub app_key: String,
+
+    /// The username or email address of the account used to access the
+    /// Vereinsflieger API.
     pub username: String,
+
+    /// The password of the account used to access the Vereinsflieger API.
     #[sqlx(try_from = "String")]
     pub password: SecretString,
 }
 
 impl Credentials {
+    /// Find the "first" set of credentials in the database. If multiple
+    /// credentials are stored, a random one is returned. In other words,
+    /// we expect only one set of credentials to be stored.
     pub async fn find_first(pool: SqlitePool) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
@@ -26,6 +49,7 @@ impl Credentials {
         .await
     }
 
+    /// Insert the credentials into the database.
     pub async fn insert(&self, pool: SqlitePool) -> sqlx::Result<()> {
         sqlx::query(
             r#"
@@ -43,17 +67,35 @@ impl Credentials {
     }
 }
 
+/// A member of the club.
+///
+/// Note that the primary key of the `members` table is the `keycode` field,
+/// so a member might exist multiple times in the database if they have
+/// multiple keycodes. It is implemented this way to optimize the query
+/// performance when looking up a member by their keycode.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Member {
+    /// The RFID keycode of the member.
+    ///
+    /// This currently accepts 10-digit numeric keycodes and 7-digit hexadecimal
+    /// keycodes. The latter are converted to the former.
     pub keycode: String,
+
+    /// The member ID inside the club (aka. "Mitgliedsnummer").
     pub id: String,
+
+    /// The first name of the member.
     pub firstname: String,
+
+    /// The last name of the member.
     pub lastname: String,
-    #[allow(dead_code)]
+
+    /// The nickname of the member. (might be empty)
     pub nickname: String,
 }
 
 impl Member {
+    /// Find a member by their keycode.
     pub async fn find_by_keycode(pool: SqlitePool, keycode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
@@ -67,13 +109,18 @@ impl Member {
         .await
     }
 
-    pub async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
+    /// Delete all members from the database.
+    ///
+    /// This should usually be used inside a transaction in combination with
+    /// inserting new members.
+    async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
         sqlx::query("DELETE FROM members")
             .execute(connection)
             .await
             .map(|_| ())
     }
 
+    /// Insert a member into the database.
     async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         sqlx::query(
             r#"
@@ -91,6 +138,12 @@ impl Member {
         .map(|_| ())
     }
 
+    /// Remove all members from the database and insert a new set of members.
+    ///
+    /// If any member fails to insert, a warning is logged, but the transaction
+    /// is still committed. This ensures that we still insert as many members as
+    /// possible, even if some of them e.g. share the same keycode causing a
+    /// unique constraint violation.
     pub async fn save_all(pool: SqlitePool, members: Vec<Self>) -> sqlx::Result<()> {
         let mut transaction = pool.begin().await?;
 
@@ -121,10 +174,19 @@ impl Member {
     }
 }
 
+/// An article that can be sold in the club.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Article {
+    /// The article ID (aka. "Artikelnummer").
+    ///
+    /// Since there is no dedicated field for barcodes in Vereinsflieger, we
+    /// assume that the article ID matches the barcode.
     pub id: String,
+
+    /// The designation of the article (aka. "Bezeichnung").
     pub designation: String,
+
+    /// A mapping of date ranges to prices.
     #[sqlx(json)]
     pub prices: Vec<Price>,
 }
@@ -145,10 +207,16 @@ impl TryFrom<vereinsflieger::Article> for Article {
     }
 }
 
+/// A price for an article that is valid within a certain date range.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Price {
+    /// The date from which the price is valid (inclusive).
     pub valid_from: jiff::civil::Date,
+
+    /// The date until which the price is valid (inclusive).
     pub valid_to: jiff::civil::Date,
+
+    /// The unit price of the article.
     pub unit_price: Decimal,
 }
 
@@ -165,6 +233,7 @@ impl TryFrom<vereinsflieger::Price> for Price {
 }
 
 impl Article {
+    /// Find an article by its barcode (i.e. article ID).
     pub async fn find_by_barcode(pool: SqlitePool, barcode: &str) -> sqlx::Result<Option<Self>> {
         sqlx::query_as(
             r#"
@@ -178,13 +247,18 @@ impl Article {
         .await
     }
 
-    pub async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
+    /// Delete all articles from the database.
+    ///
+    /// This should usually be used inside a transaction in combination with
+    /// inserting new articles.
+    async fn delete_all(connection: &mut SqliteConnection) -> sqlx::Result<()> {
         sqlx::query("DELETE FROM articles")
             .execute(connection)
             .await
             .map(|_| ())
     }
 
+    /// Insert an article into the database.
     async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         let prices = serde_json::to_string(&self.prices)
             .map_err(Into::into)
@@ -204,6 +278,12 @@ impl Article {
         .map(|_| ())
     }
 
+    /// Remove all articles from the database and insert a new set of articles.
+    ///
+    /// If any article fails to insert, a warning is logged, but the transaction
+    /// is still committed. This ensures that we still insert as many articles as
+    /// possible, even if some of them e.g. share the same barcode causing a
+    /// unique constraint violation.
     pub async fn save_all(pool: SqlitePool, articles: Vec<Self>) -> sqlx::Result<()> {
         let mut transaction = pool.begin().await?;
 
@@ -217,10 +297,17 @@ impl Article {
         transaction.commit().await
     }
 
+    /// Get the current price of the article.
+    ///
+    /// This may return `None` if the current date is not covered by
+    /// any date range.
     pub fn current_price(&self) -> Option<Decimal> {
         self.price_for_date(&jiff::Zoned::now().date())
     }
 
+    /// Get the price of the article for a specific date.
+    ///
+    /// This may return `None` if the date is not covered by any date range.
     pub fn price_for_date(&self, date: &jiff::civil::Date) -> Option<Decimal> {
         self.prices
             .iter()
@@ -229,16 +316,29 @@ impl Article {
     }
 }
 
+/// A sale of an article to a member.
+///
+/// Sales are temporarily stored in the `sales` table before they are uploaded
+/// to Vereinsflieger. This allows us to sell articles without an internet
+/// connection and upload the sales later. This also works around the 500
+/// request limit per day, since the remaining sales can be synchronized on
+/// the next day.
 #[derive(Debug, sqlx::FromRow)]
 pub struct Sale {
+    /// The unique ID of the sale.
     pub id: Text<Ulid>,
+    /// The date of the sale.
     pub date: Text<jiff::civil::Date>,
+    /// The member ID of the buyer (aka. "Mitgliedsnummer").
     pub member_id: String,
+    /// The article ID of the sold article (aka. "Artikelnummer").
     pub article_id: String,
+    /// The amount of articles sold.
     pub amount: u32,
 }
 
 impl Sale {
+    /// Load all sales from the database.
     pub async fn load_all(pool: SqlitePool) -> sqlx::Result<Vec<Self>> {
         sqlx::query_as(
             r#"
@@ -250,6 +350,7 @@ impl Sale {
         .await
     }
 
+    /// Insert a sale into the database.
     async fn insert(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
         sqlx::query(
             r#"
@@ -267,6 +368,7 @@ impl Sale {
         .map(|_| ())
     }
 
+    /// Insert multiple sales into the database.
     #[tracing::instrument(skip(pool))]
     pub async fn insert_all(pool: SqlitePool, sales: Vec<Sale>) -> sqlx::Result<()> {
         info!("Adding sales to database…");
@@ -282,6 +384,7 @@ impl Sale {
         Ok(())
     }
 
+    /// Delete a sale by its ID.
     pub async fn delete_by_id(pool: &SqlitePool, id: Ulid) -> sqlx::Result<()> {
         sqlx::query("DELETE FROM sales WHERE id = $1")
             .bind(id.to_string())
