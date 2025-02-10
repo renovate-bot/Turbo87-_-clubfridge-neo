@@ -8,7 +8,11 @@ use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use std::time::Duration;
+use tracing::{debug, error, info, warn};
+
+/// The interval at which the app should check for updates of itself.
+const SELF_UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -33,10 +37,23 @@ pub struct Options {
 
 pub struct GlobalState {
     pub options: Options,
+
+    /// The updated app version, if the app has been updated.
+    pub self_updated: Option<String>,
+
     pub popup: Option<Popup>,
 }
 
 impl GlobalState {
+    fn self_update(&self) -> Task<Message> {
+        let self_updated = self.self_updated.clone();
+        Task::future(async move {
+            let result = self_update(self_updated).await;
+            let result = result.map_err(Arc::new);
+            Message::SelfUpdateResult(result)
+        })
+    }
+
     /// Show a popup message to the user with the default timeout.
     pub fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
         let message = message.into();
@@ -113,10 +130,21 @@ impl ClubFridge {
         let (popup, popup_task) = Popup::new(popup_message).with_timeout();
         let popup = Some(popup);
 
-        let startup_task = Task::batch([fullscreen_task, connect_task, popup_task]);
+        let startup_task = Task::batch([
+            fullscreen_task,
+            connect_task,
+            popup_task,
+            Task::done(Message::SelfUpdate),
+        ]);
+
+        let global_state = GlobalState {
+            options,
+            self_updated: None,
+            popup,
+        };
 
         let cf = Self {
-            global_state: GlobalState { options, popup },
+            global_state,
             state: State::Starting(StartingClubFridge::new()),
         };
 
@@ -124,11 +152,16 @@ impl ClubFridge {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        match &self.state {
+        let subscription = match &self.state {
             State::Starting(cf) => cf.subscription(),
             State::Setup(cf) => cf.subscription(),
             State::Running(cf) => cf.subscription(),
-        }
+        };
+
+        Subscription::batch([
+            subscription,
+            iced::time::every(SELF_UPDATE_INTERVAL).map(|_| Message::SelfUpdate),
+        ])
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -141,6 +174,25 @@ impl ClubFridge {
             let (cf, task) = RunningClubFridge::new(pool, vereinsflieger);
             self.state = State::Running(cf);
             return task;
+        }
+
+        match &message {
+            Message::SelfUpdate => {
+                return self.global_state.self_update();
+            }
+            Message::SelfUpdateResult(result) => match result {
+                Ok(self_update::Status::Updated(version)) => {
+                    info!("App has been updated to version {version}");
+                    self.global_state.self_updated = Some(version.clone());
+                }
+                Ok(self_update::Status::UpToDate(_)) => {
+                    info!("App is already up-to-date");
+                }
+                Err(err) => {
+                    warn!("Failed to check for updates: {err}");
+                }
+            },
+            _ => {}
         }
 
         if matches!(message, Message::PopupTimeoutReached) {
@@ -159,6 +211,27 @@ impl ClubFridge {
             State::Running(cf) => cf.update(message, &mut self.global_state),
         }
     }
+}
+
+async fn self_update(self_updated: Option<String>) -> anyhow::Result<self_update::Status> {
+    let status = tokio::task::spawn_blocking(move || {
+        info!("Checking for updates…");
+
+        let current_version = self_updated.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
+
+        self_update::backends::github::Update::configure()
+            .repo_owner("Turbo87")
+            .repo_name("clubfridge-neo")
+            .bin_name("clubfridge-neo")
+            .current_version(current_version)
+            .show_output(false)
+            .no_confirm(true)
+            .build()?
+            .update()
+    })
+    .await??;
+
+    Ok(status)
 }
 
 #[derive(Debug, Clone)]

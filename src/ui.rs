@@ -87,30 +87,31 @@ impl RunningClubFridge {
             })
             .unwrap_or(text("Bitte RFID Chip"));
 
-        let update_available: Option<Element<Message>> = self.self_updated.as_ref().map(|_| {
-            if global_state.options.update_button {
-                let label = "Update verfügbar. Bitte Gerät neustarten!";
-                text(label).size(24).into()
-            } else {
-                row![
-                    text("Update verfügbar.").size(24),
-                    button(
-                        text("Jetzt updaten")
-                            .color(color!(0xffffff))
-                            .size(18)
-                            .height(Fill)
-                            .align_x(Center)
-                            .align_y(Center)
-                    )
-                    .style(button::primary)
-                    .padding([0, 10])
-                    .on_press(Message::Shutdown),
-                ]
-                .spacing(10)
-                .height(Shrink)
-                .into()
-            }
-        });
+        let update_available: Option<Element<Message>> =
+            global_state.self_updated.as_ref().map(|_| {
+                if global_state.options.update_button {
+                    let label = "Update verfügbar. Bitte Gerät neustarten!";
+                    text(label).size(24).into()
+                } else {
+                    row![
+                        text("Update verfügbar.").size(24),
+                        button(
+                            text("Jetzt updaten")
+                                .color(color!(0xffffff))
+                                .size(18)
+                                .height(Fill)
+                                .align_x(Center)
+                                .align_y(Center)
+                        )
+                        .style(button::primary)
+                        .padding([0, 10])
+                        .on_press(Message::Shutdown),
+                    ]
+                    .spacing(10)
+                    .height(Shrink)
+                    .into()
+                }
+            });
 
         let sum = self.sales.iter().map(|item| item.total()).sum::<Decimal>();
         let sum = text(format!("Summe: {sum:.2}€"))
