@@ -34,7 +34,6 @@ pub struct RunningClubFridge {
     /// Mutex to ensure that only one upload task runs at a time.
     pub upload_mutex: Arc<tokio::sync::Mutex<()>>,
 
-    pub update_button: bool,
     /// The updated app version, if the app has been updated.
     pub self_updated: Option<String>,
     pub user: Option<database::Member>,
@@ -49,7 +48,6 @@ impl RunningClubFridge {
     pub fn new(
         pool: SqlitePool,
         vereinsflieger: Option<crate::vereinsflieger::Client>,
-        update_button: bool,
     ) -> (Self, Task<Message>) {
         let (popup, popup_task) = Popup::new(format!(
             "clubfridge-neo v{} gestartet",
@@ -70,7 +68,6 @@ impl RunningClubFridge {
             pool,
             vereinsflieger,
             upload_mutex: Default::default(),
-            update_button,
             self_updated: None,
             user: None,
             input: String::new(),

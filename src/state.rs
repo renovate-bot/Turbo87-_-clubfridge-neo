@@ -21,18 +21,22 @@ pub struct Options {
 
     /// Run in offline mode (no network requests)
     #[arg(long)]
-    offline: bool,
+    pub offline: bool,
 
     /// When an application update is available, show an "Update" button that
     /// quits the application. Should only be used when the application is
     /// automatically restarted by a supervisor.
     #[arg(long)]
-    update_button: bool,
+    pub update_button: bool,
+}
+
+pub struct GlobalState {
+    pub options: Options,
 }
 
 pub struct ClubFridge {
+    pub global_state: GlobalState,
     pub state: State,
-    update_button: bool,
 }
 
 /// The different states (or screens) the application can be in.
@@ -70,10 +74,11 @@ impl ClubFridge {
             })
             .unwrap_or(Task::none());
 
+        let connect_options = options.database.clone();
         let connect_task = Task::future(async move {
             info!("Connecting to database…");
             let pool_options = SqlitePoolOptions::default();
-            match pool_options.connect_with(options.database).await {
+            match pool_options.connect_with(connect_options).await {
                 Ok(pool) => Message::DatabaseConnected(pool),
                 Err(err) => {
                     error!("Failed to connect to database: {err}");
@@ -85,8 +90,8 @@ impl ClubFridge {
         let startup_task = Task::batch([fullscreen_task, connect_task]);
 
         let cf = Self {
-            state: State::Starting(StartingClubFridge::new(options.offline)),
-            update_button: options.update_button,
+            global_state: GlobalState { options },
+            state: State::Starting(StartingClubFridge::new()),
         };
 
         (cf, startup_task)
@@ -107,7 +112,7 @@ impl ClubFridge {
         }
 
         if let Message::StartupComplete(pool, vereinsflieger) = message {
-            let (cf, task) = RunningClubFridge::new(pool, vereinsflieger, self.update_button);
+            let (cf, task) = RunningClubFridge::new(pool, vereinsflieger);
             self.state = State::Running(cf);
             return task;
         }
@@ -118,7 +123,7 @@ impl ClubFridge {
         }
 
         match &mut self.state {
-            State::Starting(cf) => cf.update(message),
+            State::Starting(cf) => cf.update(message, &mut self.global_state),
             State::Setup(cf) => cf.update(message),
             State::Running(cf) => cf.update(message),
         }

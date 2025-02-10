@@ -1,5 +1,5 @@
 use crate::database;
-use crate::state::Message;
+use crate::state::{GlobalState, Message};
 use iced::futures::FutureExt;
 use iced::{Subscription, Task};
 use sqlx::SqlitePool;
@@ -7,15 +7,13 @@ use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct StartingClubFridge {
-    pub offline: bool,
     pub pool: Option<SqlitePool>,
     pub migrations_finished: bool,
 }
 
 impl StartingClubFridge {
-    pub fn new(offline: bool) -> Self {
+    pub fn new() -> Self {
         Self {
-            offline,
             pool: None,
             migrations_finished: false,
         }
@@ -25,7 +23,7 @@ impl StartingClubFridge {
         Subscription::none()
     }
 
-    pub fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message, global_state: &mut GlobalState) -> Task<Message> {
         match message {
             Message::DatabaseConnected(pool) => {
                 info!("Connected to database");
@@ -52,7 +50,7 @@ impl StartingClubFridge {
                 if let Some(pool) = &self.pool {
                     let pool = pool.clone();
 
-                    if self.offline {
+                    if global_state.options.offline {
                         return Task::done(Message::StartupComplete(pool, None));
                     }
 

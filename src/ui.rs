@@ -1,6 +1,6 @@
 use crate::running::{RunningClubFridge, Sale};
 use crate::starting::StartingClubFridge;
-use crate::state::{ClubFridge, Message, State};
+use crate::state::{ClubFridge, GlobalState, Message, State};
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, row, scrollable, stack, text, Row};
 use iced::Length::Fixed;
@@ -26,7 +26,7 @@ impl ClubFridge {
         match &self.state {
             State::Starting(cf) => cf.view(),
             State::Setup(cf) => cf.view(),
-            State::Running(cf) => cf.view(),
+            State::Running(cf) => cf.view(&self.global_state),
         }
     }
 }
@@ -58,7 +58,7 @@ impl StartingClubFridge {
 }
 
 impl RunningClubFridge {
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self, global_state: &GlobalState) -> Element<Message> {
         let title = self
             .user
             .as_ref()
@@ -75,7 +75,7 @@ impl RunningClubFridge {
             .unwrap_or(text("Bitte RFID Chip"));
 
         let update_available: Option<Element<Message>> = self.self_updated.as_ref().map(|_| {
-            if self.update_button {
+            if global_state.options.update_button {
                 let label = "Update verfügbar. Bitte Gerät neustarten!";
                 text(label).size(24).into()
             } else {
