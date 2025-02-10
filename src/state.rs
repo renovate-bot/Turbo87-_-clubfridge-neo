@@ -1,4 +1,5 @@
 use crate::database;
+use crate::popup::Popup;
 use crate::running::RunningClubFridge;
 use crate::setup::Setup;
 use crate::starting::StartingClubFridge;
@@ -7,7 +8,11 @@ use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tracing::{error, info};
+use std::time::Duration;
+use tracing::{debug, error, info, warn};
+
+/// The interval at which the app should check for updates of itself.
+const SELF_UPDATE_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -21,18 +26,56 @@ pub struct Options {
 
     /// Run in offline mode (no network requests)
     #[arg(long)]
-    offline: bool,
+    pub offline: bool,
 
     /// When an application update is available, show an "Update" button that
     /// quits the application. Should only be used when the application is
     /// automatically restarted by a supervisor.
     #[arg(long)]
-    update_button: bool,
+    pub update_button: bool,
+}
+
+pub struct GlobalState {
+    pub options: Options,
+
+    /// The updated app version, if the app has been updated.
+    pub self_updated: Option<String>,
+
+    pub popup: Option<Popup>,
+}
+
+impl GlobalState {
+    fn self_update(&self) -> Task<Message> {
+        let self_updated = self.self_updated.clone();
+        Task::future(async move {
+            let result = self_update(self_updated).await;
+            let result = result.map_err(Arc::new);
+            Message::SelfUpdateResult(result)
+        })
+    }
+
+    /// Show a popup message to the user with the default timeout.
+    pub fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
+        let message = message.into();
+
+        debug!("Showing popup: {message}");
+        let (popup, task) = Popup::new(message).with_timeout();
+
+        self.popup = Some(popup);
+        task
+    }
+
+    /// Hide the currently shown popup, if any.
+    pub fn hide_popup(&mut self) {
+        if self.popup.take().is_some() {
+            debug!("Hiding popup");
+        }
+    }
 }
 
 pub struct ClubFridge {
+    pub global_state: GlobalState,
     pub state: State,
-    update_button: bool,
 }
 
 /// The different states (or screens) the application can be in.
@@ -70,10 +113,11 @@ impl ClubFridge {
             })
             .unwrap_or(Task::none());
 
+        let connect_options = options.database.clone();
         let connect_task = Task::future(async move {
             info!("Connecting to database…");
             let pool_options = SqlitePoolOptions::default();
-            match pool_options.connect_with(options.database).await {
+            match pool_options.connect_with(connect_options).await {
                 Ok(pool) => Message::DatabaseConnected(pool),
                 Err(err) => {
                     error!("Failed to connect to database: {err}");
@@ -82,47 +126,114 @@ impl ClubFridge {
             }
         });
 
-        let startup_task = Task::batch([fullscreen_task, connect_task]);
+        let popup_message = format!("clubfridge-neo v{} gestartet", env!("CARGO_PKG_VERSION"));
+        let (popup, popup_task) = Popup::new(popup_message).with_timeout();
+        let popup = Some(popup);
+
+        let startup_task = Task::batch([
+            fullscreen_task,
+            connect_task,
+            popup_task,
+            Task::done(Message::SelfUpdate),
+        ]);
+
+        let global_state = GlobalState {
+            options,
+            self_updated: None,
+            popup,
+        };
 
         let cf = Self {
-            state: State::Starting(StartingClubFridge::new(options.offline)),
-            update_button: options.update_button,
+            global_state,
+            state: State::Starting(StartingClubFridge::new()),
         };
 
         (cf, startup_task)
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        match &self.state {
+        let subscription = match &self.state {
             State::Starting(cf) => cf.subscription(),
             State::Setup(cf) => cf.subscription(),
             State::Running(cf) => cf.subscription(),
-        }
+        };
+
+        Subscription::batch([
+            subscription,
+            iced::time::every(SELF_UPDATE_INTERVAL).map(|_| Message::SelfUpdate),
+        ])
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::GotoSetup(pool) = message {
-            self.state = State::Setup(Setup::new(pool));
-            return Task::none();
+        match message {
+            Message::GotoSetup(pool) => {
+                self.state = State::Setup(Setup::new(pool));
+            }
+
+            Message::StartupComplete(pool, vereinsflieger) => {
+                let (cf, task) = RunningClubFridge::new(pool, vereinsflieger);
+                self.state = State::Running(cf);
+                return task;
+            }
+
+            Message::SelfUpdate => {
+                return self.global_state.self_update();
+            }
+
+            Message::SelfUpdateResult(result) => match result {
+                Ok(self_update::Status::Updated(version)) => {
+                    info!("App has been updated to version {version}");
+                    self.global_state.self_updated = Some(version);
+                }
+                Ok(self_update::Status::UpToDate(_)) => {
+                    info!("App is already up-to-date");
+                }
+                Err(err) => {
+                    warn!("Failed to check for updates: {err}");
+                }
+            },
+
+            Message::PopupTimeoutReached => {
+                self.global_state.hide_popup();
+            }
+
+            Message::Shutdown => {
+                info!("Shutting down…");
+                return window::get_latest().and_then(window::close);
+            }
+
+            message => {
+                return match &mut self.state {
+                    State::Starting(cf) => cf.update(message, &mut self.global_state),
+                    State::Setup(cf) => cf.update(message, &mut self.global_state),
+                    State::Running(cf) => cf.update(message, &mut self.global_state),
+                }
+            }
         }
 
-        if let Message::StartupComplete(pool, vereinsflieger) = message {
-            let (cf, task) = RunningClubFridge::new(pool, vereinsflieger, self.update_button);
-            self.state = State::Running(cf);
-            return task;
-        }
-
-        if matches!(message, Message::Shutdown) {
-            info!("Shutting down…");
-            return window::get_latest().and_then(window::close);
-        }
-
-        match &mut self.state {
-            State::Starting(cf) => cf.update(message),
-            State::Setup(cf) => cf.update(message),
-            State::Running(cf) => cf.update(message),
-        }
+        Task::none()
     }
+}
+
+async fn self_update(self_updated: Option<String>) -> anyhow::Result<self_update::Status> {
+    let status = tokio::task::spawn_blocking(move || {
+        info!("Checking for updates…");
+
+        let current_version = self_updated.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
+
+        self_update::backends::github::Update::configure()
+            .repo_owner("Turbo87")
+            .repo_name("clubfridge-neo")
+            .bin_name("clubfridge-neo")
+            .current_version(current_version)
+            .show_output(false)
+            .no_confirm(true)
+            .build()?
+            .update()
+    })
+    .await??;
+
+    Ok(status)
 }
 
 #[derive(Debug, Clone)]

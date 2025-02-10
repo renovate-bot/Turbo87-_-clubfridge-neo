@@ -1,7 +1,7 @@
 use crate::database;
 use crate::popup::Popup;
-use crate::state::Message;
-use iced::widget::{button, container, stack, text, text_input};
+use crate::state::{GlobalState, Message};
+use iced::widget::{button, container, text, text_input};
 use iced::Length::Fixed;
 use iced::{color, Center, Element, Fill, Right, Shrink, Subscription, Task};
 use sqlx::SqlitePool;
@@ -14,7 +14,6 @@ pub struct Setup {
     app_key: String,
     username: String,
     password: String,
-    popup: Option<Popup>,
 }
 
 impl Setup {
@@ -25,7 +24,6 @@ impl Setup {
             app_key: String::new(),
             username: String::new(),
             password: String::new(),
-            popup: None,
         }
     }
 
@@ -40,7 +38,7 @@ impl Setup {
         Subscription::none()
     }
 
-    pub fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message, global_state: &mut GlobalState) -> Task<Message> {
         match message {
             Message::SetClubId(club_id) => {
                 if club_id.is_empty() || club_id.parse::<u32>().is_ok() {
@@ -69,7 +67,7 @@ impl Setup {
                     password,
                 };
 
-                self.popup = Some(Popup::new("Prüfe Zugangsdaten…".to_string()));
+                global_state.popup = Some(Popup::new("Prüfe Zugangsdaten…".to_string()));
 
                 let pool = self.pool.clone();
                 return Task::future(async move {
@@ -95,12 +93,7 @@ impl Setup {
             }
             Message::AuthenticationFailed => {
                 let message = "Authentifizierung fehlgeschlagen".to_string();
-                let (popup, task) = Popup::new(message).with_timeout();
-                self.popup = Some(popup);
-                return task;
-            }
-            Message::PopupTimeoutReached => {
-                self.popup = None;
+                return global_state.show_popup(message);
             }
             _ => {}
         }
@@ -155,27 +148,15 @@ impl Setup {
         .padding([10, 20])
         .style(button::primary);
 
-        let content = container(
+        container(
             iced::widget::column![title, inputs, submit_button]
                 .spacing(30)
                 .align_x(Center),
         )
         .height(Fill)
-        .align_y(Center);
-
-        let mut stack = stack![content];
-
-        if let Some(popup) = &self.popup {
-            stack = stack.push(
-                container(popup.view())
-                    .width(Fill)
-                    .height(Fill)
-                    .align_x(Center)
-                    .align_y(Center),
-            );
-        }
-
-        container(stack).padding([20, 30]).into()
+        .align_y(Center)
+        .padding([20, 30])
+        .into()
     }
 }
 
