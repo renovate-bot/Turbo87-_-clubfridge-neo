@@ -1,4 +1,5 @@
 use crate::database;
+use crate::popup::Popup;
 use crate::running::RunningClubFridge;
 use crate::setup::Setup;
 use crate::starting::StartingClubFridge;
@@ -7,7 +8,7 @@ use iced::{application, window, Subscription, Task};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Default, clap::Parser)]
 pub struct Options {
@@ -32,6 +33,27 @@ pub struct Options {
 
 pub struct GlobalState {
     pub options: Options,
+    pub popup: Option<Popup>,
+}
+
+impl GlobalState {
+    /// Show a popup message to the user with the default timeout.
+    pub fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
+        let message = message.into();
+
+        debug!("Showing popup: {message}");
+        let (popup, task) = Popup::new(message).with_timeout();
+
+        self.popup = Some(popup);
+        task
+    }
+
+    /// Hide the currently shown popup, if any.
+    pub fn hide_popup(&mut self) {
+        if self.popup.take().is_some() {
+            debug!("Hiding popup");
+        }
+    }
 }
 
 pub struct ClubFridge {
@@ -87,10 +109,14 @@ impl ClubFridge {
             }
         });
 
-        let startup_task = Task::batch([fullscreen_task, connect_task]);
+        let popup_message = format!("clubfridge-neo v{} gestartet", env!("CARGO_PKG_VERSION"));
+        let (popup, popup_task) = Popup::new(popup_message).with_timeout();
+        let popup = Some(popup);
+
+        let startup_task = Task::batch([fullscreen_task, connect_task, popup_task]);
 
         let cf = Self {
-            global_state: GlobalState { options },
+            global_state: GlobalState { options, popup },
             state: State::Starting(StartingClubFridge::new()),
         };
 
@@ -117,6 +143,11 @@ impl ClubFridge {
             return task;
         }
 
+        if matches!(message, Message::PopupTimeoutReached) {
+            self.global_state.popup = None;
+            return Task::none();
+        }
+
         if matches!(message, Message::Shutdown) {
             info!("Shutting down…");
             return window::get_latest().and_then(window::close);
@@ -124,8 +155,8 @@ impl ClubFridge {
 
         match &mut self.state {
             State::Starting(cf) => cf.update(message, &mut self.global_state),
-            State::Setup(cf) => cf.update(message),
-            State::Running(cf) => cf.update(message),
+            State::Setup(cf) => cf.update(message, &mut self.global_state),
+            State::Running(cf) => cf.update(message, &mut self.global_state),
         }
     }
 }

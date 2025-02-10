@@ -1,6 +1,5 @@
 use crate::database;
-use crate::popup::Popup;
-use crate::state::Message;
+use crate::state::{GlobalState, Message};
 use iced::keyboard::key::Named;
 use iced::keyboard::Key;
 use iced::{Subscription, Task};
@@ -40,8 +39,6 @@ pub struct RunningClubFridge {
     pub input: String,
     pub sales: Vec<Sale>,
     pub interaction_timeout: Option<jiff::SignedDuration>,
-
-    pub popup: Option<Popup>,
 }
 
 impl RunningClubFridge {
@@ -49,13 +46,7 @@ impl RunningClubFridge {
         pool: SqlitePool,
         vereinsflieger: Option<crate::vereinsflieger::Client>,
     ) -> (Self, Task<Message>) {
-        let (popup, popup_task) = Popup::new(format!(
-            "clubfridge-neo v{} gestartet",
-            env!("CARGO_PKG_VERSION")
-        ))
-        .with_timeout();
-
-        let mut tasks = vec![Task::done(Message::SelfUpdate), popup_task];
+        let mut tasks = vec![Task::done(Message::SelfUpdate)];
 
         if vereinsflieger.is_some() {
             tasks.push(Task::done(Message::LoadFromVF));
@@ -73,7 +64,6 @@ impl RunningClubFridge {
             input: String::new(),
             sales: Vec::new(),
             interaction_timeout: None,
-            popup: Some(popup),
         };
 
         (cf, Task::batch(tasks))
@@ -142,7 +132,7 @@ impl RunningClubFridge {
         })
     }
 
-    pub fn update(&mut self, message: Message) -> Task<Message> {
+    pub fn update(&mut self, message: Message, global_state: &mut GlobalState) -> Task<Message> {
         match message {
             Message::SelfUpdate => {
                 return self.self_update();
@@ -312,14 +302,14 @@ impl RunningClubFridge {
 
                 debug!("Key pressed: {c:?}");
                 self.input.push(c);
-                self.hide_popup();
+                global_state.hide_popup();
             }
             Message::KeyPress(Key::Named(Named::Enter), _) => {
                 debug!("Key pressed: Enter");
                 let input = mem::take(&mut self.input);
                 let pool = self.pool.clone();
 
-                self.hide_popup();
+                global_state.hide_popup();
 
                 return if self.user.is_some() {
                     Task::future(async move {
@@ -379,7 +369,7 @@ impl RunningClubFridge {
                     })
                 };
 
-                self.hide_popup();
+                global_state.hide_popup();
 
                 return task;
             }
@@ -401,7 +391,7 @@ impl RunningClubFridge {
                 }
                 Ok(None) => {
                     warn!("No article found for barcode: {input}");
-                    return self.show_popup(format!("Artikel nicht gefunden ({input})"));
+                    return global_state.show_popup(format!("Artikel nicht gefunden ({input})"));
                 }
                 Err(err) => {
                     error!("Failed to find article: {err}");
@@ -415,7 +405,7 @@ impl RunningClubFridge {
                 }
                 Ok(None) => {
                     warn!("No user found for keycode: {input}");
-                    return self.show_popup(format!("Benutzer nicht gefunden ({input})"));
+                    return global_state.show_popup(format!("Benutzer nicht gefunden ({input})"));
                 }
                 Err(err) => {
                     error!("Failed to find user: {err}");
@@ -475,7 +465,7 @@ impl RunningClubFridge {
                 info!("Sales saved");
                 self.user = None;
                 self.sales.clear();
-                return self.show_popup("Danke für deinen Kauf");
+                return global_state.show_popup("Danke für deinen Kauf");
             }
             Message::SavingSalesFailed => {
                 error!("Failed to save sales");
@@ -486,28 +476,9 @@ impl RunningClubFridge {
                 self.sales.clear();
                 self.interaction_timeout = None;
             }
-            Message::PopupTimeoutReached => {
-                self.hide_popup();
-            }
             _ => {}
         }
 
         Task::none()
-    }
-
-    fn show_popup(&mut self, message: impl Into<String>) -> Task<Message> {
-        let message = message.into();
-
-        debug!("Showing popup: {message}");
-        let (popup, task) = Popup::new(message).with_timeout();
-
-        self.popup = Some(popup);
-        task
-    }
-
-    fn hide_popup(&mut self) {
-        if self.popup.take().is_some() {
-            debug!("Hiding popup");
-        }
     }
 }

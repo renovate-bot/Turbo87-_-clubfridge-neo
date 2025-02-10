@@ -23,11 +23,24 @@ impl ClubFridge {
     }
 
     pub fn view(&self) -> Element<Message> {
-        match &self.state {
+        let content = match &self.state {
             State::Starting(cf) => cf.view(),
             State::Setup(cf) => cf.view(),
             State::Running(cf) => cf.view(&self.global_state),
-        }
+        };
+
+        let Some(popup) = &self.global_state.popup else {
+            return content;
+        };
+
+        let popup_container = container(popup.view())
+            .width(Fill)
+            .height(Fill)
+            .align_x(Center)
+            .align_y(Center)
+            .padding([20, 30]);
+
+        stack![content, popup_container].into()
     }
 }
 
@@ -143,7 +156,7 @@ impl RunningClubFridge {
         .padding([10, 20])
         .on_press_maybe(self.user.as_ref().map(|_| Message::Pay));
 
-        let content = column![
+        column![
             title.size(36),
             scrollable(items(&self.sales))
                 .height(Fill)
@@ -152,21 +165,9 @@ impl RunningClubFridge {
             status_row,
             row![cancel_button, pay_button].spacing(10),
         ]
-        .spacing(10);
-
-        let mut stack = stack![content];
-
-        if let Some(popup) = &self.popup {
-            stack = stack.push(
-                container(popup.view())
-                    .width(Fill)
-                    .height(Fill)
-                    .align_x(Center)
-                    .align_y(Center),
-            );
-        }
-
-        container(stack).padding([20, 30]).into()
+        .spacing(10)
+        .padding([20, 30])
+        .into()
     }
 }
 
