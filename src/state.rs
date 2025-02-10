@@ -35,9 +35,18 @@ pub struct ClubFridge {
     update_button: bool,
 }
 
+/// The different states (or screens) the application can be in.
 pub enum State {
+    /// The application is starting up (connecting to the database, running
+    /// database migrations, and checking for stored credentials).
     Starting(StartingClubFridge),
+
+    /// The application is in the setup screen, where the user can enter their
+    /// credentials. This state is only shown if no credentials are found in the
+    /// database.
     Setup(Setup),
+
+    /// The application is running and the user can interact with it.
     Running(RunningClubFridge),
 }
 
@@ -118,43 +127,73 @@ impl ClubFridge {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// The database connection was successful.
     DatabaseConnected(SqlitePool),
+    /// The database connection failed.
     DatabaseConnectionFailed,
+    /// The database migrations were successful.
     DatabaseMigrated,
+    /// The database migrations failed.
     DatabaseMigrationFailed,
+    /// Credentials were found in the database.
     CredentialsFound(database::Credentials),
+    /// The user should be taken to the setup screen to enter their credentials.
     GotoSetup(SqlitePool),
+    /// The database lookup for credentials failed.
     CredentialLookupFailed,
 
+    /// The user entered a club ID.
     SetClubId(String),
+    /// The user entered an app key.
     SetAppKey(String),
+    /// The user entered a username/email address.
     SetUsername(String),
+    /// The user entered a password.
     SetPassword(String),
+    /// The user submitted the setup form.
     SubmitSetup,
+    /// Authentication with Vereinsflieger failed.
     AuthenticationFailed,
 
+    /// Authentication with Vereinsflieger was successful, the application is
+    /// transitioning to the running state.
     StartupComplete(SqlitePool, Option<crate::vereinsflieger::Client>),
 
+    /// The application should check for updates.
     SelfUpdate,
+    /// The self-update check completed.
     SelfUpdateResult(Result<self_update::Status, Arc<anyhow::Error>>),
+    /// The application should load the latest lists of members and articles
+    /// from the Vereinsflieger API.
     LoadFromVF,
+    /// The application should upload all sales to Vereinsflieger.
     UploadSalesToVF,
+    /// The application received a key press event.
     KeyPress(Key, Modifiers),
+    /// A "find member by keycode" query finished.
     FindMemberResult {
         input: String,
         result: Result<Option<database::Member>, Arc<sqlx::Error>>,
     },
+    /// A "find article by barcode" query finished.
     FindArticleResult {
         input: String,
         result: Result<Option<database::Article>, Arc<sqlx::Error>>,
     },
+    /// The user pressed the "Pay" button.
     Pay,
+    /// The user pressed the "Cancel" button.
     Cancel,
+    /// Decrement the automatic sale timeout until it reaches zero.
     DecrementTimeout,
+    /// The popup timeout was reached, the popup should be closed.
     PopupTimeoutReached,
+    /// Sales were successfully saved to the local database.
     SalesSaved,
+    /// Saving sales to the local database failed.
     SavingSalesFailed,
 
+    /// The application should shut down.
     Shutdown,
 }
 
