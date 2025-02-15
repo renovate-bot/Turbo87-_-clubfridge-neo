@@ -26,7 +26,7 @@ const INTERACTION_TIMEOUT: jiff::SignedDuration = jiff::SignedDuration::from_sec
 
 pub struct RunningClubFridge {
     pub pool: SqlitePool,
-    pub vereinsflieger: Option<crate::vereinsflieger::Client>,
+    pub vereinsflieger: Option<vereinsflieger::Client>,
     /// Mutex to ensure that only one upload task runs at a time.
     pub upload_mutex: Arc<tokio::sync::Mutex<()>>,
 
@@ -39,7 +39,7 @@ pub struct RunningClubFridge {
 impl RunningClubFridge {
     pub fn new(
         pool: SqlitePool,
-        vereinsflieger: Option<crate::vereinsflieger::Client>,
+        vereinsflieger: Option<vereinsflieger::Client>,
     ) -> (Self, Task<Message>) {
         let mut tasks = vec![];
         if vereinsflieger.is_some() {
@@ -198,7 +198,7 @@ impl RunningClubFridge {
                         debug!(%sale_id, "Uploading sale #{}…", i + 1);
 
                         async fn save_sale(
-                            vereinsflieger: &crate::vereinsflieger::Client,
+                            vereinsflieger: &vereinsflieger::Client,
                             sale: database::Sale,
                         ) -> Result<(), anyhow::Error> {
                             let sale = vereinsflieger::NewSale {

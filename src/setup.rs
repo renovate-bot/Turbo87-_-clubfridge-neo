@@ -4,6 +4,7 @@ use crate::state::{GlobalState, Message};
 use iced::widget::{button, container, text, text_input};
 use iced::Length::Fixed;
 use iced::{color, Center, Element, Fill, Right, Shrink, Subscription, Task};
+use secrecy::ExposeSecret;
 use sqlx::SqlitePool;
 use tracing::{error, info, warn};
 
@@ -71,7 +72,15 @@ impl Setup {
 
                 let pool = self.pool.clone();
                 return Task::future(async move {
-                    let vereinsflieger = crate::vereinsflieger::Client::new(credentials.clone());
+                    let vf_credentials = vereinsflieger::Credentials {
+                        club_id: Some(credentials.club_id),
+                        app_key: credentials.app_key.clone(),
+                        username: credentials.username.clone(),
+                        password: credentials.password.expose_secret().into(),
+                        auth_secret: None,
+                    };
+
+                    let vereinsflieger = vereinsflieger::Client::new(vf_credentials);
                     match vereinsflieger.get_access_token().await {
                         Ok(access_token) => {
                             info!("Authentication successful");

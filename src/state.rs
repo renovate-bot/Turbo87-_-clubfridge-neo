@@ -268,7 +268,7 @@ pub enum Message {
 
     /// Authentication with Vereinsflieger was successful, the application is
     /// transitioning to the running state.
-    StartupComplete(SqlitePool, Option<crate::vereinsflieger::Client>),
+    StartupComplete(SqlitePool, Option<vereinsflieger::Client>),
 
     /// The application should check for updates.
     SelfUpdate,

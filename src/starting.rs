@@ -2,6 +2,7 @@ use crate::database;
 use crate::state::{GlobalState, Message};
 use iced::futures::FutureExt;
 use iced::{Subscription, Task};
+use secrecy::ExposeSecret;
 use sqlx::SqlitePool;
 use tracing::{error, info};
 
@@ -78,7 +79,15 @@ impl StartingClubFridge {
                 info!("Found credentials in database: {credentials:?}");
 
                 if let Some(pool) = self.pool.take() {
-                    let vereinsflieger = crate::vereinsflieger::Client::new(credentials);
+                    let vf_credentials = vereinsflieger::Credentials {
+                        club_id: Some(credentials.club_id),
+                        app_key: credentials.app_key.clone(),
+                        username: credentials.username.clone(),
+                        password: credentials.password.expose_secret().into(),
+                        auth_secret: None,
+                    };
+
+                    let vereinsflieger = vereinsflieger::Client::new(vf_credentials);
                     return Task::done(Message::StartupComplete(pool, Some(vereinsflieger)));
                 }
             }
