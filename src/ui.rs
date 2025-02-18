@@ -89,7 +89,7 @@ impl RunningClubFridge {
 
         let update_available: Option<Element<Message>> =
             global_state.self_updated.as_ref().map(|_| {
-                if global_state.options.update_button {
+                if !global_state.options.update_button {
                     let label = "Update verfügbar. Bitte Gerät neustarten!";
                     text(label).size(24).into()
                 } else {
