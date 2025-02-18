@@ -34,6 +34,18 @@ pub struct Credentials {
     pub password: SecretString,
 }
 
+impl From<Credentials> for vereinsflieger::Credentials {
+    fn from(credentials: Credentials) -> Self {
+        Self {
+            club_id: Some(credentials.club_id),
+            app_key: credentials.app_key.clone(),
+            username: credentials.username.clone(),
+            password: credentials.password.expose_secret().into(),
+            auth_secret: None,
+        }
+    }
+}
+
 impl Credentials {
     /// Find the "first" set of credentials in the database. If multiple
     /// credentials are stored, a random one is returned. In other words,

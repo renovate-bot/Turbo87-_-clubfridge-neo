@@ -79,15 +79,7 @@ impl StartingClubFridge {
                 info!("Found credentials in database: {credentials:?}");
 
                 if let Some(pool) = self.pool.take() {
-                    let vf_credentials = vereinsflieger::Credentials {
-                        club_id: Some(credentials.club_id),
-                        app_key: credentials.app_key.clone(),
-                        username: credentials.username.clone(),
-                        password: credentials.password.expose_secret().into(),
-                        auth_secret: None,
-                    };
-
-                    let vereinsflieger = vereinsflieger::Client::new(vf_credentials);
+                    let vereinsflieger = vereinsflieger::Client::new(credentials.into());
                     return Task::done(Message::StartupComplete(pool, Some(vereinsflieger)));
                 }
             }

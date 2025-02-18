@@ -72,15 +72,7 @@ impl Setup {
 
                 let pool = self.pool.clone();
                 return Task::future(async move {
-                    let vf_credentials = vereinsflieger::Credentials {
-                        club_id: Some(credentials.club_id),
-                        app_key: credentials.app_key.clone(),
-                        username: credentials.username.clone(),
-                        password: credentials.password.expose_secret().into(),
-                        auth_secret: None,
-                    };
-
-                    let vereinsflieger = vereinsflieger::Client::new(vf_credentials);
+                    let vereinsflieger = vereinsflieger::Client::new(credentials.clone().into());
                     match vereinsflieger.get_access_token().await {
                         Ok(access_token) => {
                             info!("Authentication successful");
