@@ -2,7 +2,6 @@ use crate::database;
 use crate::state::{GlobalState, Message};
 use iced::futures::FutureExt;
 use iced::{Subscription, Task};
-use secrecy::ExposeSecret;
 use sqlx::SqlitePool;
 use tracing::{error, info};
 

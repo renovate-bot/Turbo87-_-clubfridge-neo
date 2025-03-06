@@ -4,7 +4,6 @@ use crate::state::{GlobalState, Message};
 use iced::widget::{button, container, text, text_input};
 use iced::Length::Fixed;
 use iced::{color, Center, Element, Fill, Right, Shrink, Subscription, Task};
-use secrecy::ExposeSecret;
 use sqlx::SqlitePool;
 use tracing::{error, info, warn};
 
