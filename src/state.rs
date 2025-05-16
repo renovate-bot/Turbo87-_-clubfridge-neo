@@ -105,13 +105,11 @@ impl ClubFridge {
 
     pub fn new(options: Options) -> (Self, Task<Message>) {
         // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
-        let fullscreen_task = options
-            .fullscreen
-            .then(|| {
-                window::get_latest()
-                    .and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
-            })
-            .unwrap_or(Task::none());
+        let fullscreen_task = if options.fullscreen {
+            window::get_latest().and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
+        } else {
+            Task::none()
+        };
 
         let connect_options = options.database.clone();
         let connect_task = Task::future(async move {
