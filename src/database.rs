@@ -162,7 +162,10 @@ impl Member {
         Self::delete_all(&mut transaction).await?;
         for member in members {
             if let Err(error) = member.insert(&mut transaction).await {
-                warn!("Failed to insert member: {error}");
+                warn!(
+                    "Failed to insert member {} {} with keycode {}: {error}",
+                    member.firstname, member.lastname, member.keycode
+                );
             }
         }
 
