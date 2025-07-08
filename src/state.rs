@@ -106,7 +106,7 @@ impl ClubFridge {
     pub fn new(options: Options) -> (Self, Task<Message>) {
         // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
         let fullscreen_task = if options.fullscreen {
-            window::get_latest().and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
+            window::get_latest().and_then(|id| window::set_mode(id, window::Mode::Fullscreen))
         } else {
             Task::none()
         };
