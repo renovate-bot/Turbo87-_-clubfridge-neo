@@ -8,7 +8,6 @@ publish = false
 [dependencies]
 anyhow = "=1.0.98"
 clap = { version = "=4.5.40", features = ["derive"] }
-iced = { version = "=0.13.1", default-features = false, features = ["tokio", "wgpu"] }
 jiff = { version = "=0.2.15", features = ["serde"] }
 reqwest = { version = "=0.12.22", default-features = false, features = ["rustls-tls"] }
 rust_decimal = "=1.37.2"
@@ -24,6 +23,12 @@ tracing-appender = "=0.2.3"
 tracing-subscriber = "=0.3.19"
 ulid = "=1.2.1"
 vereinsflieger = "=0.8.0"
+
+[dependencies.iced]
+git = "https://github.com/iced-rs/iced"
+rev = "283d0e74a8050ea625da25e0b9180b65f11d1843"
+default-features = false
+features = ["tokio", "wgpu"]
 
 [dev-dependencies]
 claims = "=0.8.0"

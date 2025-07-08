@@ -94,23 +94,27 @@ pub enum State {
 }
 
 impl ClubFridge {
-    pub fn run(options: Options) -> iced::Result {
-        application("ClubFridge neo", Self::update, Self::view)
+    pub fn run() -> iced::Result {
+        let options = <Options as clap::Parser>::parse();
+
+        application(Self::new_from_clap, Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
             .resizable(true)
-            .window_size((800., 480.))
-            .run_with(|| Self::new(options))
+            .window(window::Settings {
+                size: (800., 480.).into(),
+                fullscreen: options.fullscreen,
+                ..Default::default()
+            })
+            .run()
+    }
+
+    fn new_from_clap() -> (Self, Task<Message>) {
+        let options = <Options as clap::Parser>::parse();
+        Self::new(options)
     }
 
     pub fn new(options: Options) -> (Self, Task<Message>) {
-        // This can be simplified once https://github.com/iced-rs/iced/pull/2627 is released.
-        let fullscreen_task = if options.fullscreen {
-            window::get_latest().and_then(|id| window::change_mode(id, window::Mode::Fullscreen))
-        } else {
-            Task::none()
-        };
-
         let connect_options = options.database.clone();
         let connect_task = Task::future(async move {
             info!("Connecting to database…");
@@ -128,12 +132,7 @@ impl ClubFridge {
         let (popup, popup_task) = Popup::new(popup_message).with_timeout();
         let popup = Some(popup);
 
-        let startup_task = Task::batch([
-            fullscreen_task,
-            connect_task,
-            popup_task,
-            Task::done(Message::SelfUpdate),
-        ]);
+        let startup_task = Task::batch([connect_task, popup_task, Task::done(Message::SelfUpdate)]);
 
         let global_state = GlobalState {
             options,

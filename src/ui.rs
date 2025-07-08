@@ -18,6 +18,7 @@ impl ClubFridge {
                 primary: color!(0x2E54C8),
                 success: color!(0x4BD130),
                 danger: color!(0xD5A30F),
+                warning: color!(0xD5A30F),
             },
         )))
     }
