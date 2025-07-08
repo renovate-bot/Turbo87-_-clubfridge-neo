@@ -94,8 +94,10 @@ pub enum State {
 }
 
 impl ClubFridge {
-    pub fn run(options: Options) -> iced::Result {
-        application("ClubFridge neo", Self::update, Self::view)
+    pub fn run() -> iced::Result {
+        let options = <Options as clap::Parser>::parse();
+
+        application(Self::new_from_clap, Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
             .resizable(true)
@@ -104,7 +106,12 @@ impl ClubFridge {
                 fullscreen: options.fullscreen,
                 ..Default::default()
             })
-            .run_with(|| Self::new(options))
+            .run()
+    }
+
+    fn new_from_clap() -> (Self, Task<Message>) {
+        let options = <Options as clap::Parser>::parse();
+        Self::new(options)
     }
 
     pub fn new(options: Options) -> (Self, Task<Message>) {

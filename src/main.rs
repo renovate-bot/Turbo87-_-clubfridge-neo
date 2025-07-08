@@ -7,14 +7,12 @@ mod starting;
 mod state;
 mod ui;
 
-use crate::state::{ClubFridge, Options};
+use crate::state::ClubFridge;
 
 pub fn main() -> anyhow::Result<()> {
     logging::init()?;
 
-    let options = <Options as clap::Parser>::parse();
-
-    ClubFridge::run(options)?;
+    ClubFridge::run()?;
 
     Ok(())
 }
