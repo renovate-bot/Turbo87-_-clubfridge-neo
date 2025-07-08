@@ -321,7 +321,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad8646f98db542e39fc66e68a20b2144f6a732636df7c2354e74645faaa433ce"
 dependencies = [
  "borsh-derive",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
 ]
 
 [[package]]
@@ -451,12 +451,6 @@ name = "cfg-if"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
-
-[[package]]
-name = "cfg_aliases"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "cfg_aliases"
@@ -772,6 +766,18 @@ name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
+
+[[package]]
+name = "cryoglyph"
+version = "0.1.0"
+source = "git+https://github.com/iced-rs/cryoglyph.git?rev=a886f2427e612b23788a4e36658ff8cd55ba6695#a886f2427e612b23788a4e36658ff8cd55ba6695"
+dependencies = [
+ "cosmic-text",
+ "etagere",
+ "lru",
+ "rustc-hash 2.1.1",
+ "wgpu",
+]
 
 [[package]]
 name = "crypto-common"
@@ -1191,7 +1197,7 @@ checksum = "1d930c203dd0b6ff06e0201a4a2fe9149b43c684fd4420555b26d21b1a02956f"
 dependencies = [
  "futures-core",
  "lock_api",
- "parking_lot 0.12.4",
+ "parking_lot",
 ]
 
 [[package]]
@@ -1313,9 +1319,9 @@ checksum = "151665d9be52f9bb40fc7966565d39666f2d1e69233571b71b87791c7e0528b3"
 
 [[package]]
 name = "glow"
-version = "0.14.2"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51fa363f025f5c111e03f13eda21162faeacb6911fe8caa0c0349f9cf0c4483"
+checksum = "c5e5ea60d70410161c8bf5da3fdfeaa1c72ed2c15f8bbb9d19fe3a4fad085f08"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -1330,18 +1336,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
-]
-
-[[package]]
-name = "glyphon"
-version = "0.5.0"
-source = "git+https://github.com/hecrj/glyphon.git?rev=09712a70df7431e9a3b1ac1bbd4fb634096cb3b4#09712a70df7431e9a3b1ac1bbd4fb634096cb3b4"
-dependencies = [
- "cosmic-text",
- "etagere",
- "lru",
- "rustc-hash 2.1.1",
- "wgpu",
 ]
 
 [[package]]
@@ -1627,7 +1621,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1640,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "bitflags 2.9.1",
  "bytes",
@@ -1658,7 +1652,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "futures",
  "iced_core",
@@ -1666,13 +1660,13 @@ dependencies = [
  "rustc-hash 2.1.1",
  "tokio",
  "wasm-bindgen-futures",
- "wasm-timer",
+ "wasmtimer",
 ]
 
 [[package]]
 name = "iced_graphics"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "bitflags 2.9.1",
  "bytemuck",
@@ -1690,7 +1684,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "iced_graphics",
  "iced_wgpu",
@@ -1701,25 +1695,26 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "bytes",
  "iced_core",
  "iced_futures",
  "raw-window-handle",
+ "sipper",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "bitflags 2.9.1",
  "bytemuck",
+ "cryoglyph",
  "futures",
  "glam",
- "glyphon",
  "guillotiere",
  "iced_graphics",
  "log",
@@ -1731,7 +1726,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "iced_renderer",
  "iced_runtime",
@@ -1745,7 +1740,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0-dev"
-source = "git+https://github.com/iced-rs/iced?rev=1f9723a9296082ea06b7280833c60e8f2e547cb5#1f9723a9296082ea06b7280833c60e8f2e547cb5"
+source = "git+https://github.com/iced-rs/iced?rev=bae25b74f68078e5ff74cdae717273cf315d4e90#bae25b74f68078e5ff74cdae717273cf315d4e90"
 dependencies = [
  "iced_futures",
  "iced_graphics",
@@ -1888,15 +1883,6 @@ dependencies = [
  "portable-atomic",
  "unicode-width 0.2.1",
  "web-time",
-]
-
-[[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -2188,9 +2174,9 @@ dependencies = [
 
 [[package]]
 name = "metal"
-version = "0.29.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ecfd3296f8c56b7c1f6fbac3c71cefa9d78ce009850c45000015f206dc7fa21"
+checksum = "f569fb946490b5743ad69813cb19629130ce9374034abe31614a36402d18f99e"
 dependencies = [
  "bitflags 2.9.1",
  "block",
@@ -2223,22 +2209,23 @@ dependencies = [
 
 [[package]]
 name = "naga"
-version = "23.1.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "364f94bc34f61332abebe8cad6f6cd82a5b65cff22c828d05d0968911462ca4f"
+checksum = "e380993072e52eef724eddfcde0ed013b0c023c3f0417336ed041aa9f076994e"
 dependencies = [
  "arrayvec",
  "bit-set",
  "bitflags 2.9.1",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "codespan-reporting",
  "hexf-parse",
  "indexmap",
  "log",
  "rustc-hash 1.1.0",
  "spirv",
+ "strum",
  "termcolor",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "unicode-xid",
 ]
 
@@ -2625,6 +2612,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "4.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2671,37 +2667,12 @@ checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
-dependencies = [
- "instant",
- "lock_api",
- "parking_lot_core 0.8.6",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70d58bf43669b5795d1576d0641cfb6fbb2057bf629506267a92807158584a13"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.11",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
-dependencies = [
- "cfg-if",
- "instant",
- "libc",
- "redox_syscall 0.2.16",
- "smallvec",
- "winapi",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -2959,7 +2930,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "626214629cda6781b6dc1d316ba307189c85ba657213ce642d9c77670f8202c8"
 dependencies = [
  "bytes",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
@@ -2999,7 +2970,7 @@ version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcebb1209ee276352ef14ff8732e24cc2b02bbac986cd74a4c81bcb2f9881970"
 dependencies = [
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "libc",
  "once_cell",
  "socket2",
@@ -3133,15 +3104,6 @@ checksum = "69aacb76b5c29acfb7f90155d39759a29496aebb49395830e928a9703d2eec2f"
 dependencies = [
  "bytemuck",
  "font-types",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.2.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
-dependencies = [
- "bitflags 1.3.2",
 ]
 
 [[package]]
@@ -3669,6 +3631,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
+name = "sipper"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bccb4192828b3d9a08e0b5a73f17795080dfb278b50190216e3ae2132cf4f95"
+dependencies = [
+ "futures",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "skrifa"
 version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4007,6 +3979,28 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "strum"
+version = "0.26.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.104",
+]
 
 [[package]]
 name = "subtle"
@@ -4760,18 +4754,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-timer"
-version = "0.2.5"
+name = "wasmtimer"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
+checksum = "d8d49b5d6c64e8558d9b1b065014426f35c18de636895d24893dbbd329743446"
 dependencies = [
  "futures",
  "js-sys",
- "parking_lot 0.11.2",
+ "parking_lot",
  "pin-utils",
+ "slab",
  "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -4914,17 +4907,18 @@ dependencies = [
 
 [[package]]
 name = "wgpu"
-version = "23.0.1"
+version = "24.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80f70000db37c469ea9d67defdc13024ddf9a5f1b89cb2941b812ad7cde1735a"
+checksum = "6b0b3436f0729f6cdf2e6e9201f3d39dc95813fad61d826c1ed07918b4539353"
 dependencies = [
  "arrayvec",
- "cfg_aliases 0.1.1",
+ "bitflags 2.9.1",
+ "cfg_aliases",
  "document-features",
  "js-sys",
  "log",
  "naga",
- "parking_lot 0.12.4",
+ "parking_lot",
  "profiling",
  "raw-window-handle",
  "smallvec",
@@ -4939,34 +4933,34 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "23.0.1"
+version = "24.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63c3c478de8e7e01786479919c8769f62a22eec16788d8c2ac77ce2c132778a"
+checksum = "7f0aa306497a238d169b9dc70659105b4a096859a34894544ca81719242e1499"
 dependencies = [
  "arrayvec",
  "bit-vec",
  "bitflags 2.9.1",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "document-features",
  "indexmap",
  "log",
  "naga",
  "once_cell",
- "parking_lot 0.12.4",
+ "parking_lot",
  "profiling",
  "raw-window-handle",
  "rustc-hash 1.1.0",
  "smallvec",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "wgpu-hal",
  "wgpu-types",
 ]
 
 [[package]]
 name = "wgpu-hal"
-version = "23.0.1"
+version = "24.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89364b8a0b211adc7b16aeaf1bd5ad4a919c1154b44c9ce27838213ba05fd821"
+checksum = "f112f464674ca69f3533248508ee30cb84c67cf06c25ff6800685f5e0294e259"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -4975,7 +4969,7 @@ dependencies = [
  "bitflags 2.9.1",
  "block",
  "bytemuck",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "core-graphics-types",
  "glow",
  "glutin_wgl_sys",
@@ -4992,14 +4986,15 @@ dependencies = [
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",
  "once_cell",
- "parking_lot 0.12.4",
+ "ordered-float",
+ "parking_lot",
  "profiling",
  "range-alloc",
  "raw-window-handle",
  "renderdoc-sys",
  "rustc-hash 1.1.0",
  "smallvec",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "wasm-bindgen",
  "web-sys",
  "wgpu-types",
@@ -5009,12 +5004,13 @@ dependencies = [
 
 [[package]]
 name = "wgpu-types"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "610f6ff27778148c31093f3b03abc4840f9636d58d597ca2f5977433acfe0068"
+checksum = "50ac044c0e76c03a0378e7786ac505d010a873665e2d51383dcff8dd227dc69c"
 dependencies = [
  "bitflags 2.9.1",
  "js-sys",
+ "log",
  "web-sys",
 ]
 
@@ -5436,7 +5432,7 @@ dependencies = [
  "block2",
  "bytemuck",
  "calloop",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "concurrent-queue",
  "core-foundation",
  "core-graphics",
