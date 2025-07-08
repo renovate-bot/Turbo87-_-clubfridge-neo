@@ -26,7 +26,7 @@ vereinsflieger = "=0.8.0"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced"
-rev = "97498aaddc378f0106f5ab322f5a31ad8d4aff48"
+rev = "283d0e74a8050ea625da25e0b9180b65f11d1843"
 default-features = false
 features = ["tokio", "wgpu"]
 
