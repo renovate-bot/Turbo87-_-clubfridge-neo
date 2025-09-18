@@ -31,7 +31,7 @@ impl Popup {
         (self, task)
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         container(text(&self.message).size(36).color(color!(0x000000)))
             .style(|_theme: &Theme| container::background(color!(0xffffff)).border(rounded(10.)))
             .padding([15, 30])
