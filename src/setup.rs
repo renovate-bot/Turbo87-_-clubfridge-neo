@@ -101,7 +101,7 @@ impl Setup {
         Task::none()
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let title = text("ClubFridge neo").size(36).width(Fill).align_x(Center);
 
         let submit_fn = self.valid().then(|| Message::SubmitSetup);

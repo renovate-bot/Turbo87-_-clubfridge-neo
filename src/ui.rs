@@ -23,7 +23,7 @@ impl ClubFridge {
         )))
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let content = match &self.state {
             State::Starting(cf) => cf.view(),
             State::Setup(cf) => cf.view(),
@@ -46,7 +46,7 @@ impl ClubFridge {
 }
 
 impl StartingClubFridge {
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let title = text("ClubFridge neo").size(36).width(Fill).align_x(Center);
 
         let status = if self.pool.is_none() {
@@ -72,7 +72,7 @@ impl StartingClubFridge {
 }
 
 impl RunningClubFridge {
-    pub fn view(&self, global_state: &GlobalState) -> Element<Message> {
+    pub fn view(&self, global_state: &GlobalState) -> Element<'_, Message> {
         let title = self
             .user
             .as_ref()
@@ -173,11 +173,11 @@ impl RunningClubFridge {
     }
 }
 
-fn items(items: &[Sale]) -> Element<Message> {
+fn items(items: &[Sale]) -> Element<'_, Message> {
     column(items.iter().map(sale_row)).spacing(10).into()
 }
 
-fn sale_row(sale: &Sale) -> Element<Message> {
+fn sale_row(sale: &Sale) -> Element<'_, Message> {
     const AMOUNT_WIDTH: Length = Fixed(40.);
     const PRICE_WIDTH: Length = Fixed(80.);
 
