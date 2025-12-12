@@ -26,7 +26,7 @@ vereinsflieger = "=0.8.0"
 [dependencies.iced]
 version = "=0.14.0"
 default-features = false
-features = ["tokio", "wgpu"]
+features = ["tokio", "wayland", "wgpu"]
 
 [dev-dependencies]
 tokio = { version = "=1.48.0", features = ["macros"] }
