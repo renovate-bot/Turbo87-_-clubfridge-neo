@@ -63,8 +63,12 @@ impl RunningClubFridge {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        let mut subscriptions = vec![iced::keyboard::on_key_press(|key, modifiers| {
-            Some(Message::KeyPress(key, modifiers))
+        let mut subscriptions = vec![iced::keyboard::listen().filter_map(|event| {
+            if let iced::keyboard::Event::KeyPressed { key, modifiers, .. } = event {
+                Some(Message::KeyPress(key, modifiers))
+            } else {
+                None
+            }
         })];
 
         if self.vereinsflieger.is_some() {

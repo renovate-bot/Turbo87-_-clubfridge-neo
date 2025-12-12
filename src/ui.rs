@@ -120,7 +120,7 @@ impl RunningClubFridge {
             .width(Fill)
             .align_x(Right);
 
-        let status_row = Row::with_capacity(2).push_maybe(update_available).push(sum);
+        let status_row = Row::with_capacity(2).extend(update_available).push(sum);
 
         let mut cancel_label = "Abbruch".to_string();
         if let Some(timeout) = self.interaction_timeout {

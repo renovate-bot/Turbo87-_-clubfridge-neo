@@ -196,7 +196,7 @@ impl ClubFridge {
 
             Message::Shutdown => {
                 info!("Shutting down…");
-                return window::get_latest().and_then(window::close);
+                return window::latest().and_then(window::close);
             }
 
             message => {
